@@ -1,6 +1,6 @@
 # SHOGGOTH BACKBONE — EXECUTION PLAN
 
-> **Document Status**: ACTIVE SPRINT — WAVE 10: REAL IMPLEMENTATION (2026-06-24)  
+> **Document Status**: ACTIVE SPRINT — WAVE 11: REAL CLI + SATURATOR + SMOKE TESTS (2026-06-24)  
 > **Last Updated**: 2026-06-24  
 > **Target Cluster**: Dual Xeon 6240 (72T) + 512GB DDR4 + Intel QAT | RTX 5090 + RTX 4090 | RTX 3090 + 2× AMD MI50 Instinct (CDNA) | 12× BC250 Modded APUs (144GB Unified GDDR6 Pool)  
 > **Honest Assessment**: ~65% of the Rust codebase was well-architected scaffolding (types, traits, protocols, auth, telemetry, discovery, QUIC transport). The computational core (GPU dispatch, video encoding, DMA-BUF, GENEx alignment) returned fake/hardcoded/zeroed data. Wave 10 replaces ALL critical stubs with real implementations.
@@ -21,6 +21,10 @@
 | **DMA-BUF export** | `None` | Still `None` — requires Vulkan `VK_KHR_external_memory_fd` interop via `ash` crate. |
 | **NVENC/AMF/VAAPI encoders** | All return `vec![]` | Still stubbed — require hardware vendor SDKs (NVENC API, AMF SDK, libva). Software path is real. |
 
+| **CLI commands** | All printed fake/hardcoded output | HTTP calls to orchestrator (`GET /topology`, `POST /launch`, `GET /health`). Benchmark runs real CPU SGEMM (128-2048 matrix sizes, reports GFLOPS). `--orchestrator-url` flag + `SHOGGOTH_ORCHESTRATOR_URL` env. Falls back to static catalog when unreachable. |
+| **thread_saturator.rs** | Work-stealing skeleton without shutdown | AtomicBool shutdown signal. Workers check flag each iteration + on yield. `shutdown()` + `is_shutdown()` public API. Real `launch()` returns JoinHandles. |
+| **End-to-end tests** | 3 basic tests | 9 tests total. 6 new: identity SGEMM (diagonal/off-diagonal verified), known values (2×2 matmul), scalar (7×3=21), stress-512 (sin matrices, reports GFLOPS), all-layers forward pass, router coverage. |
+
 ### What's Still Scaffolded (Honest List)
 - **GPU temp/utilization telemetry**: Needs NVML (nvidia-smi) or ROCm-SMI bindings.
 - **DMA-BUF export via Vulkan**: Needs `ash` crate + `VK_KHR_external_memory_fd`.
@@ -30,7 +34,6 @@
 - **GENEx ScyllaDB integration**: `database_reader.rs` has real ScyllaDB code but requires a live ScyllaDB instance.
 - **GENEx marketplace escrow**: Needs blockchain (Ethereum/Solana) RPC endpoint.
 - **Cloud provisioning**: `cloud_provision.rs` types are real but Brev/AWS/GCP API calls are not yet integrated.
-- **CLI benchmark/deploy commands**: Print orchestration messages but don't run actual benchmarks or cloud deploys.
 
 ---
 
