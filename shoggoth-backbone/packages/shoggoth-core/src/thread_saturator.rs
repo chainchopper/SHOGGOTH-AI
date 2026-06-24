@@ -15,7 +15,7 @@
 
 use crossbeam_deque::{Injector, Steal, Stealer, Worker};
 use dashmap::DashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
 
@@ -70,18 +70,18 @@ pub struct SaturatorMetrics {
 /// scheduler, backed by Chase-Lev lock-free deques.
 #[derive(Debug)]
 pub struct ShoggothThreadSaturator {
-    /// Global injector: new tasks are pushed here when the caller doesn't
-    /// have thread affinity set.
+    /// Global injector for tasks without thread affinity.
     global_injector: Arc<Injector<ShoggothTask>>,
-    /// Each worker thread has one of these for local task storage.
+    /// Per-worker local queues.
     workers: Vec<Worker<ShoggothTask>>,
-    /// Stealers for all workers, cloned to each thread so they can steal
-    /// from any sibling.
+    /// Stealers cloned per worker for sibling theft.
     stealers: Vec<Stealer<ShoggothTask>>,
     /// Number of worker threads.
     thread_count: usize,
     /// Running metrics.
     metrics: Arc<DashMap<String, SaturatorMetrics>>,
+    /// Graceful shutdown signal.
+    shutdown: Arc<AtomicBool>,
 }
 
 impl ShoggothThreadSaturator {
@@ -110,6 +110,7 @@ impl ShoggothThreadSaturator {
             stealers,
             thread_count: num_threads,
             metrics: Arc::new(DashMap::new()),
+            shutdown: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -169,6 +170,7 @@ impl ShoggothThreadSaturator {
         let global = Arc::clone(&self.global_injector);
         let stealers = Arc::new(self.stealers);
         let metrics = Arc::clone(&self.metrics);
+        let shutdown = Arc::clone(&self.shutdown);
 
         self.workers
             .into_iter()
@@ -177,6 +179,7 @@ impl ShoggothThreadSaturator {
                 let global = Arc::clone(&global);
                 let stealers = Arc::clone(&stealers);
                 let metrics = Arc::clone(&metrics);
+                let shutdown = Arc::clone(&shutdown);
 
                 thread::Builder::new()
                     .name(format!("shoggoth-worker-{worker_id}"))
@@ -184,6 +187,15 @@ impl ShoggothThreadSaturator {
                         let mut local_metrics = SaturatorMetrics::default();
 
                         loop {
+                            // Check shutdown before doing work.
+                            if shutdown.load(Ordering::Relaxed) {
+                                metrics.insert(
+                                    format!("worker-{worker_id}"),
+                                    local_metrics,
+                                );
+                                return;
+                            }
+
                             // 1. Try local LIFO queue (cache-hot).
                             if let Some(task) = worker.pop() {
                                 (task.payload)();
@@ -231,7 +243,11 @@ impl ShoggothThreadSaturator {
                                 Steal::Empty => {}
                             }
 
-                            // 4. All queues empty — yield.
+                            // 4. All queues empty — check shutdown, then yield.
+                            if shutdown.load(Ordering::Relaxed) {
+                                metrics.insert(format!("worker-{worker_id}"), local_metrics);
+                                return;
+                            }
                             local_metrics.total_injected =
                                 NEXT_TASK_ID.load(Ordering::Relaxed) - 1;
                             metrics.insert(
@@ -244,6 +260,18 @@ impl ShoggothThreadSaturator {
                     .expect("Failed to spawn worker thread")
             })
             .collect()
+    }
+
+    /// Signals all workers to shut down gracefully. Workers complete their
+    /// current task and exit on the next loop iteration.
+    pub fn shutdown(&self) {
+        self.shutdown.store(true, Ordering::SeqCst);
+    }
+
+    /// Returns true if the shutdown signal has been sent.
+    #[must_use]
+    pub fn is_shutdown(&self) -> bool {
+        self.shutdown.load(Ordering::Relaxed)
     }
 
     /// Returns a snapshot of per-worker metrics for the dashboard.

@@ -235,14 +235,13 @@ impl Default for ShoggothComputeRouter {
 
 /// CPU fallback: real single-precision general matrix multiply (SGEMM).
 ///
-/// C = alpha * A * B
+/// C = alpha * A * B with alpha=1.0.
 ///
 /// Reads input tensor as a matrix with shape [M, K] × implicit [K, N].
 /// Returns the output tensor with shape [M, N] and the computed result.
 ///
-/// This runs on the Xeon host when no GPU backend is available and is
-/// functionally correct — just slower than GPU dispatch.
-fn execute_local_fallback(tensor: &ComputeTaskTensor) -> ComputeTaskTensor {
+/// Public so the CLI and tests can benchmark real CPU throughput.
+pub fn execute_local_fallback(tensor: &ComputeTaskTensor) -> ComputeTaskTensor {
     tracing::debug!(
         backend = "CPU",
         shape = ?tensor.shape,
