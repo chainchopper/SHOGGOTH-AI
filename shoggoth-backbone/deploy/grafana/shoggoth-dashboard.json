@@ -1,0 +1,260 @@
+{
+  "__inputs": [],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "11.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0" }
+  ],
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#00FF66", "value": null },
+              { "color": "#FF9900", "value": 32 },
+              { "color": "#FF3344", "value": 128 }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "orientation": "auto",
+        "reduceOptions": { "values": false, "calcs": ["lastNotNull"] },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "shoggoth_nodes_total",
+          "legendFormat": "Total Nodes",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Nodes",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#00FF66", "value": null }
+            ]
+          },
+          "unit": "decbytes"
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+      "targets": [{ "expr": "shoggoth_total_vram_bytes", "refId": "A" }],
+      "title": "Total VRAM",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "#00FF66", "value": null }]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "shoggoth_full_shoggoths_total", "refId": "A" }],
+      "title": "Full Shoggoths",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#00FF66", "value": null },
+              { "color": "#FF9900", "value": 100 },
+              { "color": "#FF3344", "value": 500 }
+            ]
+          },
+          "unit": "ms"
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": { "reduceOptions": { "calcs": ["mean"] } },
+      "targets": [{ "expr": "shoggoth_network_rtt_ms", "refId": "A" }],
+      "title": "Avg Network RTT",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 6 },
+      "id": 10,
+      "options": { "legend": { "showLegend": true, "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "shoggoth_nodes_total",
+          "legendFormat": "Total",
+          "refId": "A"
+        },
+        {
+          "expr": "shoggoth_nodes_online",
+          "legendFormat": "Online",
+          "refId": "B"
+        }
+      ],
+      "title": "Node Count Over Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 6 },
+      "id": 11,
+      "options": { "legend": { "showLegend": true, "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "shoggoth_node_vram_bytes",
+          "legendFormat": "{{node_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "VRAM Per Node",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 16 },
+      "id": 12,
+      "options": { "legend": { "showLegend": true, "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "shoggoth_node_temperature_c",
+          "legendFormat": "{{node_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "GPU Temperature (°C)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 16 },
+      "id": 13,
+      "options": { "legend": { "showLegend": true, "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "shoggoth_node_ping_ms",
+          "legendFormat": "{{node_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Network Latency Per Node (ms)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 26 },
+      "id": 20,
+      "options": { "legend": { "showLegend": true } },
+      "targets": [
+        {
+          "expr": "rate(shoggoth_tasks_dispatched_total[5m])",
+          "legendFormat": "Dispatched",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(shoggoth_tasks_completed_total[5m])",
+          "legendFormat": "Completed",
+          "refId": "B"
+        }
+      ],
+      "title": "Task Throughput (tasks/sec)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 26 },
+      "id": 21,
+      "options": {},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(shoggoth_task_latency_us_bucket[5m]))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, rate(shoggoth_task_latency_us_bucket[5m]))",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(shoggoth_task_latency_us_bucket[5m]))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "title": "Task Latency Percentiles (µs)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 26 },
+      "id": 22,
+      "options": {},
+      "targets": [
+        {
+          "expr": "rate(shoggoth_cloud_cost_total_cents[1h]) * 3600 / 100",
+          "legendFormat": "$/hr",
+          "refId": "A"
+        }
+      ],
+      "title": "Cloud Spend Rate ($/hr)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["shoggoth", "gpu", "compute-fabric"],
+  "templating": {
+    "list": [
+      {
+        "current": { "text": "Prometheus", "value": "Prometheus" },
+        "hide": 0,
+        "label": "Data Source",
+        "name": "DS_PROMETHEUS",
+        "query": "prometheus",
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "Shoggoth Mesh Machine",
+  "uid": "shoggoth-dashboard",
+  "version": 1,
+  "weekStart": ""
+}

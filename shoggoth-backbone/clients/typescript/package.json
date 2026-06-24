@@ -1,0 +1,14 @@
+{
+  "name": "@shoggoth/client",
+  "version": "0.1.0",
+  "description": "TypeScript API client for the Shoggoth Mesh Machine orchestrator",
+  "license": "Apache-2.0",
+  "main": "shoggoth-client.ts",
+  "types": "shoggoth-client.ts",
+  "files": ["shoggoth-client.ts"],
+  "keywords": ["shoggoth", "gpu", "compute", "orchestrator"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chainchopper/shoggoth-backbone"
+  }
+}

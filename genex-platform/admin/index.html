@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GENEx — Superadmin Panel</title>
+  <style>
+    :root {
+      --amber: #ff9900;
+      --obsidian: #0d0d0d;
+      --obsidian-light: #1a1a1a;
+      --border: #2a2a2a;
+      --text: #e0e0e0;
+      --text-secondary: #888;
+      --green: #00cc66;
+      --red: #ff3344;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+      background: var(--obsidian);
+      color: var(--text);
+      display: flex;
+      min-height: 100vh;
+    }
+    /* Sidebar */
+    nav {
+      width: 220px;
+      background: var(--obsidian-light);
+      border-right: 1px solid var(--border);
+      padding: 1.5rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    nav h2 { color: var(--amber); font-size: 1rem; margin-bottom: 1rem; }
+    nav button {
+      background: none; border: none; color: var(--text-secondary);
+      padding: 0.5rem 0.75rem; text-align: left; cursor: pointer;
+      font-family: inherit; font-size: 0.8rem; border-radius: 0.25rem;
+    }
+    nav button:hover, nav button.active { background: var(--border); color: var(--amber); }
+    nav button.active { border-left: 3px solid var(--amber); }
+    /* Main */
+    main { flex: 1; padding: 1.5rem; overflow: auto; }
+    h3 { color: var(--amber); font-size: 0.95rem; margin-bottom: 1rem; }
+    .card { background: var(--obsidian-light); border: 1px solid var(--border); border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem; }
+    .row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+    input, select { padding: 0.5rem; background: #111; border: 1px solid var(--border); border-radius: 0.25rem; color: var(--text); font-family: monospace; font-size: 0.8rem; outline: none; }
+    button { padding: 0.5rem 1rem; border: none; border-radius: 0.25rem; cursor: pointer; font-family: inherit; font-size: 0.8rem; font-weight: 600; }
+    .btn-primary { background: var(--amber); color: #000; }
+    .btn-danger { background: var(--red); color: #fff; }
+    .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.7rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+    th, td { padding: 0.5rem; text-align: left; border-bottom: 1px solid var(--border); }
+    th { color: var(--text-secondary); font-weight: 600; }
+    .status-ok { color: var(--green); }
+    .status-err { color: var(--red); }
+    #login-overlay { position: fixed; inset: 0; background: var(--obsidian); display: flex; align-items: center; justify-content: center; z-index: 999; }
+    #login-card { background: var(--obsidian-light); border: 1px solid var(--border); border-radius: 1rem; padding: 2rem; width: 360px; text-align: center; }
+    #toast { position: fixed; bottom: 1rem; right: 1rem; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-size: 0.8rem; z-index: 1000; }
+  </style>
+</head>
+<body>
+
+<!-- Login Overlay -->
+<div id="login-overlay">
+  <div id="login-card">
+    <h2 style="color:var(--amber);margin-bottom:1.5rem">🧬 GENEx Superadmin</h2>
+    <form id="login-form" style="display:flex;flex-direction:column;gap:0.5rem">
+      <input type="password" id="login-key" placeholder="GENEx admin API key" required />
+      <button type="submit" class="btn-primary">Sign In</button>
+      <p id="login-error" style="color:var(--red);font-size:0.7rem;display:none"></p>
+    </form>
+  </div>
+</div>
+
+<!-- Sidebar -->
+<nav>
+  <h2>🧬 GENEx Admin</h2>
+  <button class="active" data-section="dashboard">📊 Dashboard</button>
+  <button data-section="ingest">📥 FASTA Ingest</button>
+  <button data-section="escrow">💰 Escrow Contracts</button>
+  <button data-section="scylla">🗄 ScyllaDB</button>
+  <button data-section="keys">🔑 API Keys</button>
+  <button data-section="audit">📋 Audit Log</button>
+  <button data-section="settings">⚙️ Settings</button>
+  <button id="btn-logout" style="margin-top:auto;color:var(--red)">⏻ Logout</button>
+</nav>
+
+<!-- Main Content -->
+<main id="main-content"></main>
+
+<!-- Toast -->
+<div id="toast" style="display:none"></div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let apiKey = localStorage.getItem("genex_admin_key") || "";
+let activeSection = "dashboard";
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+const loginOverlay = document.getElementById("login-overlay");
+const loginForm = document.getElementById("login-form");
+const loginError = document.getElementById("login-error");
+
+async function validateKey(key) {
+  try {
+    const r = await fetch("http://localhost:9200/admin/auth", {
+      headers: { "X-GENEx-Key": key },
+    });
+    return r.ok;
+  } catch { return false; }
+}
+
+if (apiKey) {
+  validateKey(apiKey).then(ok => { if (ok) { loginOverlay.style.display = "none"; renderSection(); } });
+}
+
+loginForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const key = document.getElementById("login-key").value;
+  const ok = await validateKey(key);
+  if (ok) {
+    apiKey = key;
+    localStorage.setItem("genex_admin_key", key);
+    loginOverlay.style.display = "none";
+    renderSection();
+  } else {
+    loginError.style.display = "block";
+    loginError.textContent = "Invalid API key.";
+  }
+});
+
+document.getElementById("btn-logout").addEventListener("click", () => {
+  localStorage.removeItem("genex_admin_key");
+  location.reload();
+});
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+document.querySelectorAll("nav button[data-section]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("nav button[data-section]").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    activeSection = btn.dataset.section;
+    renderSection();
+  });
+});
+
+// ── Render ─────────────────────────────────────────────────────────────────────
+async function renderSection() {
+  const main = document.getElementById("main-content");
+  switch (activeSection) {
+    case "dashboard": main.innerHTML = await renderDashboard(); break;
+    case "ingest": main.innerHTML = renderIngest(); bindIngest(); break;
+    case "escrow": main.innerHTML = await renderEscrow(); break;
+    case "scylla": main.innerHTML = await renderScylla(); break;
+    case "keys": main.innerHTML = renderKeys(); break;
+    case "audit": main.innerHTML = await renderAudit(); break;
+    case "settings": main.innerHTML = renderSettings(); break;
+  }
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(`http://localhost:9200${path}`, {
+    ...opts,
+    headers: { ...opts.headers, "X-GENEx-Key": apiKey, "Content-Type": "application/json" },
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+function toast(msg, ok = true) {
+  const t = document.getElementById("toast");
+  t.style.display = "block";
+  t.style.background = ok ? "var(--green)" : "var(--red)";
+  t.textContent = msg;
+  setTimeout(() => t.style.display = "none", 3000);
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+async function renderDashboard() {
+  let stats;
+  try { stats = await api("/admin/stats"); } catch { stats = { nodes: 0, records: 0, contracts: 0, uptime: 0 }; }
+  return `
+    <h3>GENEx Dashboard</h3>
+    <div class="row" style="gap:1rem">
+      <div class="card" style="flex:1"><strong>Nodes</strong><br><span style="font-size:1.5rem;color:var(--amber)">${stats.nodes || 0}</span></div>
+      <div class="card" style="flex:1"><strong>Records</strong><br><span style="font-size:1.5rem;color:var(--amber)">${(stats.records || 0).toLocaleString()}</span></div>
+      <div class="card" style="flex:1"><strong>Contracts</strong><br><span style="font-size:1.5rem;color:var(--amber)">${stats.contracts || 0}</span></div>
+      <div class="card" style="flex:1"><strong>Uptime</strong><br><span style="font-size:1.5rem;color:var(--amber)">${Math.floor((stats.uptime || 0) / 3600)}h</span></div>
+    </div>
+  `;
+}
+
+// ── FASTA Ingest ──────────────────────────────────────────────────────────────
+function renderIngest() {
+  return `
+    <h3>FASTA File Ingest</h3>
+    <div class="card">
+      <div class="row">
+        <input type="text" id="ingest-path" placeholder="/data/sequences/chr1.fa" style="flex:1" />
+        <button class="btn-primary" id="btn-ingest">Ingest</button>
+      </div>
+      <div id="ingest-status" style="margin-top:0.5rem;font-size:0.8rem"></div>
+      <div id="ingest-progress" style="margin-top:0.5rem;display:none">
+        <progress id="ingest-bar" value="0" max="100" style="width:100%"></progress>
+        <span id="ingest-pct" style="font-size:0.7rem;color:var(--text-secondary)">0%</span>
+      </div>
+    </div>
+  `;
+}
+
+function bindIngest() {
+  document.getElementById("btn-ingest").addEventListener("click", async () => {
+    const path = document.getElementById("ingest-path").value;
+    const status = document.getElementById("ingest-status");
+    try {
+      status.innerHTML = '<span style="color:var(--amber)">Ingesting...</span>';
+      const r = await api("/admin/ingest", { method: "POST", body: JSON.stringify({ path }) });
+      status.innerHTML = `<span style="color:var(--green)">✓ Ingested ${r.records} records (${(r.total_bp / 1e6).toFixed(1)} Mbp)</span>`;
+      toast(`Ingested ${r.records} FASTA records`);
+    } catch (e) {
+      status.innerHTML = `<span style="color:var(--red)">✗ ${e.message}</span>`;
+    }
+  });
+}
+
+// ── Escrow ────────────────────────────────────────────────────────────────────
+async function renderEscrow() {
+  let contracts;
+  try { contracts = await api("/admin/escrow"); } catch { contracts = []; }
+  const rows = contracts.map(c => `
+    <tr>
+      <td style="font-family:monospace;font-size:0.7rem">${c.contract_id?.slice(0,8)}</td>
+      <td>${c.chromosome || "-"}</td>
+      <td>${c.stake_amount || 0}</td>
+      <td>${c.milestones_done || 0}/${c.milestone_count || 0}</td>
+      <td style="color:${c.challenged ? 'var(--red)' : 'var(--green)'}">${c.challenged ? 'CHALLENGED' : 'ACTIVE'}</td>
+      <td><button class="btn-sm btn-danger" onclick="settleContract('${c.contract_id}')">Settle</button></td>
+    </tr>
+  `).join("");
+  return `<h3>Escrow Contracts</h3><table><thead><tr><th>ID</th><th>Chromosome</th><th>Stake</th><th>Progress</th><th>Status</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="6">No contracts</td></tr>'}</tbody></table>`;
+}
+
+window.settleContract = async (id) => {
+  try {
+    await api(`/admin/escrow/${id}/settle`, { method: "POST" });
+    toast("Contract settled");
+    renderSection();
+  } catch (e) { toast(e.message, false); }
+};
+
+// ── ScyllaDB ──────────────────────────────────────────────────────────────────
+async function renderScylla() {
+  let info;
+  try { info = await api("/admin/scylla"); } catch { info = { nodes: [], keyspace: "genex" }; }
+  return `
+    <h3>ScyllaDB Status</h3>
+    <div class="card"><strong>Keyspace:</strong> ${info.keyspace || "genex"} &nbsp;|&nbsp; <strong>Nodes:</strong> ${info.node_count || 0}</div>
+    <div class="card">
+      <button class="btn-primary" onclick="scyllaSnapshot()">Take Snapshot</button>
+      <button class="btn-sm" style="margin-left:0.5rem" onclick="scyllaBackup()">Backup Now</button>
+    </div>
+    <div id="scylla-result"></div>
+  `;
+}
+
+window.scyllaSnapshot = async () => {
+  try { await api("/admin/scylla/snapshot", { method: "POST" }); toast("Snapshot created"); } catch (e) { toast(e.message, false); }
+};
+window.scyllaBackup = async () => {
+  try { await api("/admin/scylla/backup", { method: "POST" }); toast("Backup started"); } catch (e) { toast(e.message, false); }
+};
+
+// ── API Keys ──────────────────────────────────────────────────────────────────
+function renderKeys() {
+  return `
+    <h3>API Key Management</h3>
+    <div class="card">
+      <div class="row">
+        <input type="text" id="key-label" placeholder="Key label" />
+        <select id="key-role"><option value="admin">Admin</option><option value="operator">Operator</option><option value="readonly">ReadOnly</option></select>
+        <button class="btn-primary" id="btn-gen-key">Generate</button>
+      </div>
+      <div id="new-key-display" style="margin-top:0.5rem;display:none"></div>
+    </div>
+    <div id="key-list"></div>
+  `;
+}
+
+// ── Audit ─────────────────────────────────────────────────────────────────────
+async function renderAudit() {
+  let entries;
+  try { entries = await api("/admin/audit"); } catch { entries = []; }
+  const rows = (entries || []).map(e => `<div style="padding:0.25rem 0;border-bottom:1px solid var(--border);font-size:0.7rem;font-family:monospace;color:var(--text-secondary)">${e}</div>`).join("");
+  return `<h3>Audit Log</h3><div class="card" style="max-height:400px;overflow:auto">${rows || 'No entries'}</div>`;
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+function renderSettings() {
+  return `
+    <h3>GENEx Settings</h3>
+    <div class="card">
+      <div class="row"><label style="width:180px">ScyllaDB Nodes:</label><input value="localhost" style="flex:1" /></div>
+      <div class="row"><label style="width:180px">Reference Genome:</label><input value="/data/reference/hg38.fa" style="flex:1" /></div>
+      <div class="row"><label style="width:180px">Escrow Ledger URL:</label><input value="http://localhost:8545" style="flex:1" /></div>
+      <button class="btn-primary" style="margin-top:0.5rem">Save Settings</button>
+    </div>
+  `;
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+# Shoggoth Mesh Machine — EditorConfig
+#
+# Ensures consistent indentation, line endings, and charset across all editors.
+# Supported by VS Code, IntelliJ, Vim, Emacs, and most other editors.
+#
+# https://editorconfig.org
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# ── Rust ───────────────────────────────────────────────────────────────────────
+[*.rs]
+indent_size = 4
+
+[*.toml]
+indent_size = 4
+
+# ── Python ─────────────────────────────────────────────────────────────────────
+[*.py]
+indent_size = 4
+
+# ── TypeScript / JavaScript / JSON ─────────────────────────────────────────────
+[*.{ts,tsx,js,jsx,json}]
+indent_size = 2
+
+# ── YAML ───────────────────────────────────────────────────────────────────────
+[*.{yml,yaml}]
+indent_size = 2
+
+# ── Markdown ───────────────────────────────────────────────────────────────────
+[*.md]
+trim_trailing_whitespace = false
+
+# ── Shell Scripts ──────────────────────────────────────────────────────────────
+[*.sh]
+indent_size = 4
+
+# ── Makefile ───────────────────────────────────────────────────────────────────
+[Makefile]
+indent_style = tab
+indent_size = 4
+
+# ── Docker ─────────────────────────────────────────────────────────────────────
+[Dockerfile*]
+indent_size = 2
+
+# ── CQL / SQL ──────────────────────────────────────────────────────────────────
+[*.{cql,sql}]
+indent_size = 2
+
+# ── WGSL / GLSL ────────────────────────────────────────────────────────────────
+[*.{wgsl,glsl,comp,vert,frag}]
+indent_size = 4
+
+# ── Ignore files ───────────────────────────────────────────────────────────────
+[{.gitignore,.gitattributes,.dockerignore}]
+indent_style = space
+indent_size = 2

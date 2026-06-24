@@ -1,0 +1,65 @@
+# Shoggoth Node Agent — Dockerfile
+#
+# Multi-stage build for the shoggoth-node-agent binary.
+# Designed to run on BC250 APUs, cloud GPU instances, and edge devices.
+#
+# Build:
+#   docker build -t ghcr.io/chainchopper/shoggoth-node-agent:latest \
+#     -f Dockerfile.node-agent .
+#
+# Run:
+#   docker run --network host --privileged --gpus all \
+#     -v /dev/dri:/dev/dri \
+#     -e SHOGGOTH_NODE_ID=bc250-01 \
+#     -e SHOGGOTH_ORCHESTRATOR_ADDR=192.168.1.100:9100 \
+#     ghcr.io/chainchopper/shoggoth-node-agent:latest
+
+# ── Build Stage ────────────────────────────────────────────────────────────────
+FROM rust:1.85-slim-bookworm AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Copy workspace manifests.
+COPY Cargo.toml Cargo.lock* ./
+COPY packages/shoggoth-core/Cargo.toml packages/shoggoth-core/
+COPY packages/shoggoth-sdk/Cargo.toml packages/shoggoth-sdk/
+COPY packages/shoggoth-node-agent/Cargo.toml packages/shoggoth-node-agent/
+
+# Dummy sources for dependency caching.
+RUN mkdir -p packages/shoggoth-core/src && \
+    echo "fn main() {}" > packages/shoggoth-core/src/lib.rs && \
+    mkdir -p packages/shoggoth-sdk/src && \
+    echo "fn main() {}" > packages/shoggoth-sdk/src/lib.rs && \
+    mkdir -p packages/shoggoth-node-agent/src && \
+    echo "fn main() {}" > packages/shoggoth-node-agent/src/main.rs
+
+RUN cargo build --release -p shoggoth-node-agent && \
+    rm -rf packages/*/src target/release/deps/shoggoth*
+
+# Copy actual source.
+COPY packages/ packages/
+
+# Build the node agent binary.
+RUN cargo build --release -p shoggoth-node-agent && \
+    cp target/release/shoggoth-node-agent /usr/local/bin/
+
+# ── Runtime Stage ──────────────────────────────────────────────────────────────
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -s /bin/bash shoggoth
+
+COPY --from=builder /usr/local/bin/shoggoth-node-agent /usr/local/bin/
+
+USER shoggoth
+CMD ["shoggoth-node-agent"]

@@ -1,0 +1,337 @@
+openapi: "3.1.0"
+info:
+  title: Shoggoth Mesh Machine — Orchestrator API
+  description: |
+    REST API for the Shoggoth Mesh Machine orchestrator.
+    Provides hardware fabric topology, workload analysis, template launching,
+    and node registration. WebSocket telemetry on port 9101.
+  version: "0.1.0"
+  contact:
+    name: Shoggoth Mesh Machine Contributors
+    url: https://github.com/chainchopper/shoggoth-backbone
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: http://localhost:9100
+    description: Local development orchestrator
+  - url: https://shoggoth-orchestrator.shoggoth.svc.cluster.local:9100
+    description: Kubernetes production orchestrator
+
+tags:
+  - name: Health
+    description: Liveness and readiness probes
+  - name: Topology
+    description: Hardware fabric topology and node listing
+  - name: Analysis
+    description: Workload classification and hardware routing
+  - name: Launch
+    description: Template-based workload deployment
+  - name: Fabric
+    description: Node registration and management
+
+paths:
+  /health:
+    get:
+      operationId: healthCheck
+      tags: [Health]
+      summary: Orchestrator liveness check
+      responses:
+        "200":
+          description: Orchestrator is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /topology:
+    get:
+      operationId: getTopology
+      tags: [Topology]
+      summary: Full hardware fabric topology snapshot
+      responses:
+        "200":
+          description: Topology snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopologyResponse"
+
+  /fabric/nodes:
+    get:
+      operationId: listNodes
+      tags: [Topology]
+      summary: List nodes, optionally filtered by capability
+      parameters:
+        - name: capability
+          in: query
+          schema:
+            type: string
+            enum: [HardwareRayTracing, MatrixTensorCore, MassiveUnifiedAPU, SystemCentralBrain, VirtualizedGraphics]
+          description: Filter by capability
+      responses:
+        "200":
+          description: Node list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeListResponse"
+
+    post:
+      operationId: registerNode
+      tags: [Fabric]
+      summary: Register or update a node in the fabric
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NodeInfo"
+      responses:
+        "200":
+          description: Node registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterResponse"
+
+  /analyze:
+    post:
+      operationId: analyzeWorkload
+      tags: [Analysis]
+      summary: Analyze source code and route to optimal hardware
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeRequest"
+      responses:
+        "200":
+          description: Analysis result with hardware routing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyzeResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /launch:
+    post:
+      operationId: launchTemplate
+      tags: [Launch]
+      summary: Deploy a pre-configured workflow template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LaunchRequest"
+      responses:
+        "200":
+          description: Template deployed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LaunchResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, service, version, protocol]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        service:
+          type: string
+          example: "shoggoth-orchestrator"
+        version:
+          type: string
+          example: "0.1.0"
+        protocol:
+          type: integer
+          minimum: 1
+          example: 1
+
+    TopologyResponse:
+      type: object
+      required: [total_nodes, total_vram_gb, full_shoggoths, nodes, uptime_seconds]
+      properties:
+        total_nodes:
+          type: integer
+          example: 19
+        total_vram_gb:
+          type: number
+          example: 308.0
+        full_shoggoths:
+          type: integer
+          example: 3
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/NodeInfo"
+        uptime_seconds:
+          type: integer
+          format: int64
+          example: 86400
+
+    NodeInfo:
+      type: object
+      required: [node_id, tier, vram_gb, ping_ms, accepting_work, temperature_c]
+      properties:
+        node_id:
+          type: string
+          example: "rtx-5090-edge"
+        tier:
+          type: string
+          enum: [EdgeOnPrem, CloudScale]
+          example: "EdgeOnPrem"
+        vram_gb:
+          type: integer
+          minimum: 0
+          example: 32
+        ping_ms:
+          type: number
+          example: 0.3
+        accepting_work:
+          type: boolean
+          example: true
+        temperature_c:
+          type: number
+          example: 52.0
+
+    NodeListResponse:
+      type: object
+      required: [nodes, count, total_vram_gb]
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/NodeInfo"
+        count:
+          type: integer
+        total_vram_gb:
+          type: number
+
+    RegisterResponse:
+      type: object
+      required: [status, node_id, total_nodes]
+      properties:
+        status:
+          type: string
+          enum: [registered]
+        node_id:
+          type: string
+        total_nodes:
+          type: integer
+
+    AnalyzeRequest:
+      type: object
+      required: [source_code]
+      properties:
+        source_code:
+          type: string
+          maxLength: 100000
+          description: Source code to analyze (Python, C++, GLSL, Rust, etc.)
+          example: "import torch.nn as nn; model = nn.Linear(20, 20).cuda()"
+        project_name:
+          type: string
+          maxLength: 256
+          description: Optional project name for template generation
+          example: "my-ml-project"
+
+    AnalyzeResponse:
+      type: object
+      required: [workload, target_node, reason, suggested_template, template_manifest, confidence]
+      properties:
+        workload:
+          type: string
+          enum: [TensorCompute, RayTracing, RasterGraphics, GeneralCPU]
+        target_node:
+          type: string
+        reason:
+          type: string
+        suggested_template:
+          type: string
+        template_manifest:
+          type: string
+          description: Full shoggoth.toml manifest content
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+
+    LaunchRequest:
+      type: object
+      required: [template_name]
+      properties:
+        template_name:
+          type: string
+          enum: [render-farm, heavy-compute, async-game-runtime, genomic-processing, generic]
+          example: "render-farm"
+        project_name:
+          type: string
+          maxLength: 256
+
+    LaunchResponse:
+      type: object
+      required: [status, template, manifest, message]
+      properties:
+        status:
+          type: string
+          enum: [deployed, error]
+        template:
+          type: string
+        manifest:
+          type: string
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required: [error, code, message]
+      properties:
+        error:
+          type: string
+          example: "Bad Request"
+        code:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: "Invalid template name"
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Shoggoth-Key
+      description: Shoggoth API key (generated via auth.rs)
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: OIDC session token
+
+security:
+  - ApiKeyAuth: []
+  - BearerAuth: []

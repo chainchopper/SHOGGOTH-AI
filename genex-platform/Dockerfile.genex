@@ -1,0 +1,22 @@
+# GENEx Daemon — Dockerfile
+#
+# Multi-stage build for the GENEx genomics processing daemon.
+# Links against Shoggoth SDK for compute fabric access.
+#
+# Build:
+#   docker build -t ghcr.io/chainchopper/genex-daemon:latest -f Dockerfile.genex .
+
+FROM rust:1.85-slim-bookworm AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+WORKDIR /build
+COPY Cargo.toml Cargo.lock* ./
+COPY src/ src/
+RUN cargo build --release -p genex-platform && cp target/release/genex-platform /usr/local/bin/genex
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
+RUN useradd -m -s /bin/bash genex
+COPY --from=builder /usr/local/bin/genex /usr/local/bin/
+USER genex
+WORKDIR /data
+CMD ["genex", "escrow", "--contract", "0x0"]

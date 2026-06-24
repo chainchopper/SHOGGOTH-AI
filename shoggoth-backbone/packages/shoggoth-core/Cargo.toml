@@ -1,0 +1,44 @@
+[package]
+name = "shoggoth-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Core distributed execution engine: work-stealing thread saturator, JIT SPIR-V shader compiler, DMA-BUF memory fabric, and cross-vendor device discovery for the Shoggoth Mesh Machine."
+
+[dependencies]
+tokio = { workspace = true }
+wgpu = { workspace = true }
+naga = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bincode = { workspace = true }
+crossbeam-channel = { workspace = true }
+crossbeam-deque = { workspace = true }
+dashmap = { workspace = true }
+parking_lot = { workspace = true }
+xxhash-rust = { workspace = true }
+libc = { workspace = true }
+nix = { workspace = true }
+memmap2 = { workspace = true }
+tracing = { workspace = true }
+bytemuck = "1.0"
+zstd = { version = "0.13", default-features = false }
+lz4-flex = "0.11"
+flate2 = "1.0"
+ring = "0.17"
+getrandom = "0.2"
+
+[build-dependencies]
+shaderc = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+proptest = { workspace = true }
+tokio-test = { workspace = true }
+
+[[bench]]
+name = "thread_saturator"
+harness = false

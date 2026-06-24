@@ -1,0 +1,56 @@
+# ── Rust ──
+shoggoth-backbone/target/
+genex-platform/target/
+**/*.rs.bk
+
+# ── Node ──
+shoggoth-backbone/apps/shoggoth-desktop/node_modules/
+shoggoth-backbone/apps/shoggoth-desktop/dist/
+
+# ── Python ──
+npu-stack/__pycache__/
+npu-stack/**/__pycache__/
+npu-stack/.venv/
+npu-stack/.pytest_cache/
+npu-stack/.mypy_cache/
+npu-stack/*.egg-info/
+*.pyc
+*.pyo
+
+# ── Environment & Secrets ──
+.env
+.env.local
+*.pem
+*.key
+deploy/certs/
+
+# ── IDE ──
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+
+# ── Docker ──
+docker-compose.override.yml
+
+# ── Build Artifacts ──
+*.log
+*.profraw
+*.profdata
+shoggoth-backbone/target/book/
+
+# ── ScyllaDB Data ──
+scylla-data/
+
+# ── Checkpoints ──
+npu-stack/checkpoints/
+npu-stack/datasets/
+
+# ── SDK Client Builds ──
+shoggoth-backbone/clients/c/build/
+shoggoth-backbone/clients/typescript/node_modules/

@@ -1,0 +1,45 @@
+# Shoggoth Mesh Machine — Prometheus Configuration
+#
+# Scrapes the Shoggoth orchestrator metrics endpoint (port 9102).
+# Copy to /etc/prometheus/prometheus.yml or mount as a volume.
+
+global:
+  scrape_interval: 5s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files:
+  - "/etc/prometheus/shoggoth-alerts.yml"
+
+scrape_configs:
+  - job_name: "shoggoth-orchestrator"
+    static_configs:
+      - targets: ["localhost:9102"]
+    metrics_path: /metrics
+
+  - job_name: "shoggoth-node-agents"
+    static_configs:
+      - targets:
+          - "bc250-01:9102"
+          - "bc250-02:9102"
+          - "bc250-03:9102"
+          - "bc250-04:9102"
+          - "bc250-05:9102"
+          - "bc250-06:9102"
+          - "bc250-07:9102"
+          - "bc250-08:9102"
+          - "bc250-09:9102"
+          - "bc250-10:9102"
+          - "bc250-11:9102"
+          - "bc250-12:9102"
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  - job_name: "scylla"
+    static_configs:
+      - targets: ["localhost:9180"]
+    metrics_path: /metrics

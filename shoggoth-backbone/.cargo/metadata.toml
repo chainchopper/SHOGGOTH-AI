@@ -1,0 +1,16 @@
+# Shoggoth SDK — Cargo Publish Metadata
+#
+# Metadata used when publishing to crates.io.
+# Each crate includes these fields via workspace inheritance.
+
+# Package keywords (crates.io search).
+keywords = ["gpu", "compute", "distributed", "heterogeneous", "fabric", "wgpu", "vulkan", "cuda", "rocm", "machine-learning", "rendering"]
+categories = ["hardware-support", "graphics", "science", "multimedia::encoding"]
+
+# Package metadata for crates.io display.
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.crates_io]
+image = "https://raw.githubusercontent.com/chainchopper/shoggoth-backbone/main/docs/shoggoth-logo.png"

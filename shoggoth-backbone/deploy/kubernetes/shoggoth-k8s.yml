@@ -1,0 +1,304 @@
+# Shoggoth Mesh Machine — Kubernetes Deployment
+#
+# Deploys the Shoggoth Backbone on a Kubernetes cluster with:
+#   • KubeShare GPU sharing for fractional GPU allocation.
+#   • Each node-agent runs as a DaemonSet on GPU nodes.
+#   • Orchestrator runs as a single Deployment.
+#   • ScyllaDB StatefulSet for genomic data persistence.
+#   • NPU-STACK Deployment for ML inference.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shoggoth
+  labels:
+    name: shoggoth
+    app.kubernetes.io/part-of: shoggoth-mesh-machine
+---
+# ── GPU Node Agent DaemonSet ────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: shoggoth-node-agent
+  namespace: shoggoth
+  labels:
+    app: shoggoth-node-agent
+spec:
+  selector:
+    matchLabels:
+      app: shoggoth-node-agent
+  template:
+    metadata:
+      labels:
+        app: shoggoth-node-agent
+    spec:
+      hostNetwork: true
+      hostPID: true
+      dnsPolicy: ClusterFirstWithHostNet
+      nodeSelector:
+        shoggoth.io/gpu: "true"
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: node-agent
+          image: ghcr.io/chainchopper/shoggoth-node-agent:latest
+          imagePullPolicy: Always
+          command: ["shoggoth-node-agent"]
+          env:
+            - name: SHOGGOTH_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: SHOGGOTH_ORCHESTRATOR_ADDR
+              value: "shoggoth-orchestrator.shoggoth.svc.cluster.local:9100"
+            - name: SHOGGOTH_BROADCAST_ADDR
+              value: "255.255.255.255:8888"
+            - name: RUST_LOG
+              value: "shoggoth=info"
+          resources:
+            requests:
+              nvidia.com/gpu: 1
+              memory: "4Gi"
+              cpu: "4"
+            limits:
+              nvidia.com/gpu: 1
+              memory: "16Gi"
+              cpu: "8"
+          securityContext:
+            privileged: true  # Required for GPU access and DMA-BUF
+          volumeMounts:
+            - name: dri
+              mountPath: /dev/dri
+              readOnly: true
+            - name: shm
+              mountPath: /dev/shm
+          readinessProbe:
+            exec:
+              command: ["pgrep", "shoggoth-node-agent"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      volumes:
+        - name: dri
+          hostPath:
+            path: /dev/dri
+            type: Directory
+        - name: shm
+          hostPath:
+            path: /dev/shm
+            type: Directory
+---
+# ── Orchestrator Deployment ─────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shoggoth-orchestrator
+  namespace: shoggoth
+  labels:
+    app: shoggoth-orchestrator
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # Single master — no rolling updates.
+  selector:
+    matchLabels:
+      app: shoggoth-orchestrator
+  template:
+    metadata:
+      labels:
+        app: shoggoth-orchestrator
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9102"
+    spec:
+      hostNetwork: true
+      containers:
+        - name: orchestrator
+          image: ghcr.io/chainchopper/shoggoth-orchestrator:latest
+          imagePullPolicy: Always
+          command: ["shoggoth-orchestrator"]
+          env:
+            - name: SHOGGOTH_DISCOVERY_ADDR
+              value: "0.0.0.0:8888"
+            - name: RUST_LOG
+              value: "shoggoth=info"
+          ports:
+            - name: api
+              containerPort: 9100
+              protocol: TCP
+            - name: telemetry
+              containerPort: 9101
+              protocol: TCP
+            - name: metrics
+              containerPort: 9102
+              protocol: TCP
+          resources:
+            requests:
+              memory: "8Gi"
+              cpu: "8"
+            limits:
+              memory: "64Gi"
+              cpu: "32"
+          volumeMounts:
+            - name: shm
+              mountPath: /dev/shm
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9100
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9100
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: shm
+          hostPath:
+            path: /dev/shm
+            type: Directory
+---
+# ── Orchestrator Service ────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: shoggoth-orchestrator
+  namespace: shoggoth
+  labels:
+    app: shoggoth-orchestrator
+spec:
+  type: ClusterIP
+  selector:
+    app: shoggoth-orchestrator
+  ports:
+    - name: api
+      port: 9100
+      targetPort: 9100
+      protocol: TCP
+    - name: telemetry
+      port: 9101
+      targetPort: 9101
+      protocol: TCP
+    - name: metrics
+      port: 9102
+      targetPort: 9102
+      protocol: TCP
+---
+# ── ScyllaDB StatefulSet ───────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: shoggoth-scylla
+  namespace: shoggoth
+  labels:
+    app: shoggoth-scylla
+spec:
+  serviceName: shoggoth-scylla
+  replicas: 3
+  selector:
+    matchLabels:
+      app: shoggoth-scylla
+  template:
+    metadata:
+      labels:
+        app: shoggoth-scylla
+    spec:
+      containers:
+        - name: scylla
+          image: scylladb/scylla:6.2
+          command:
+            - scylla
+            - --smp=32
+            - --memory=64G
+            - --developer-mode=0
+          ports:
+            - containerPort: 9042
+              name: cql
+            - containerPort: 7000
+              name: intra
+          resources:
+            requests:
+              memory: "32Gi"
+              cpu: "16"
+            limits:
+              memory: "64Gi"
+              cpu: "32"
+          readinessProbe:
+            exec:
+              command: ["nodetool", "status"]
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/scylla
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 500Gi
+---
+# ── ScyllaDB Service ───────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: shoggoth-scylla
+  namespace: shoggoth
+spec:
+  clusterIP: None
+  selector:
+    app: shoggoth-scylla
+  ports:
+    - name: cql
+      port: 9042
+    - name: intra
+      port: 7000
+---
+# ── NPU-STACK Deployment ───────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: npu-stack
+  namespace: shoggoth
+  labels:
+    app: npu-stack
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: npu-stack
+  template:
+    metadata:
+      labels:
+        app: npu-stack
+    spec:
+      containers:
+        - name: npu-stack
+          image: ghcr.io/chainchopper/npu-stack:latest
+          ports:
+            - containerPort: 8100
+          env:
+            - name: SHOGGOTH_ORCHESTRATOR_ADDR
+              value: "shoggoth-orchestrator.shoggoth.svc.cluster.local:9100"
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "2"
+            limits:
+              memory: "16Gi"
+              cpu: "8"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: npu-stack
+  namespace: shoggoth
+spec:
+  selector:
+    app: npu-stack
+  ports:
+    - port: 8100
+      targetPort: 8100

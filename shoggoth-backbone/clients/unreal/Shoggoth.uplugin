@@ -1,0 +1,30 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "0.1.0",
+  "FriendlyName": "Shoggoth Mesh Machine",
+  "Description": "Distributed GPU fabric integration for Unreal Engine — render farm distribution, Nanite/Lumen acceleration, and live telemetry.",
+  "Category": "Rendering",
+  "CreatedBy": "Shoggoth Mesh Machine Contributors",
+  "CreatedByURL": "https://github.com/chainchopper/shoggoth-backbone",
+  "DocsURL": "https://github.com/chainchopper/shoggoth-backbone/docs",
+  "MarketplaceURL": "",
+  "SupportURL": "https://github.com/chainchopper/shoggoth-backbone/issues",
+  "CanContainContent": true,
+  "IsBetaVersion": true,
+  "IsExperimentalVersion": false,
+  "Installed": false,
+  "Modules": [
+    {
+      "Name": "Shoggoth",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ],
+  "Plugins": [
+    {
+      "Name": "MovieRenderPipeline",
+      "Enabled": true
+    }
+  ]
+}

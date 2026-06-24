@@ -1,0 +1,61 @@
+# Shoggoth Backbone — cargo-deny Configuration
+#
+# Validates dependency licenses, security advisories, and source origins.
+# Run: cargo deny check
+#
+# Install: cargo install cargo-deny
+
+[graph]
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "x86_64-pc-windows-msvc" },
+    { triple = "aarch64-unknown-linux-gnu" },
+]
+
+[advisories]
+version = 2
+db-path = "$CARGO_HOME/advisory-dbs"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+yanked = "deny"
+ignore = [
+    # Temporarily ignore until upstream fix is available.
+    # { id = "RUSTSEC-2023-XXXX", reason = "No fix available yet" },
+]
+
+[licenses]
+version = 2
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Zlib",
+    "OpenSSL",
+]
+# GENEx Platform is UNLICENSED (proprietary) — excluded from this check.
+exclude = [
+    "genex-platform",
+]
+copyleft = "deny"
+default = "deny"
+
+[bans]
+version = 2
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"
+# Prevent duplicate crate versions.
+deny = [
+    # Only if explicitly problematic.
+]
+
+[sources]
+version = 2
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-git = [
+    # Only allow specific git dependencies.
+]

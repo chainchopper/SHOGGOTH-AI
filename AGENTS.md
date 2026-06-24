@@ -80,4 +80,15 @@ When the user requests a durable behavior change, record it here or in the relev
 
 ## Child DOX Index
 
-This project is not yet indexed. Before continuing you must scan the project, build the DOX tree and replace this message with the actual index. Go deep and scan files recursively to properly evaluate complexity and create nested DOX files where needed.
+### `shoggoth-backbone/` — The Machine Engine Monorepo (Rust Workspace)
+- **Purpose**: Standalone bare-metal execution spine. Virtualized heterogeneous hardware fabric with work-stealing thread saturator, JIT SPIR-V shader compiler, DMA-BUF zero-copy memory fabric, QUIC-multiplexed networking, and WebRTC display compositor.
+- **AGENTS.md**: `shoggoth-backbone/AGENTS.md` — Emerald `#00FF66` + Steel palette. `#[deny(unsafe_code)]` on all crates except `shoggoth-core`. Zero system-wide locks mandate (`dashmap` + `crossbeam-channel` + atomics only).
+- **Key Files**: `planning.md` (execution plan), `Cargo.toml` (workspace root), `docker-compose.shoggoth.yml`, `.cargo/config.toml` (cross-compilation targets).
+
+### `genex-platform/` — Proprietary Genomics Appliance (Standalone Rust Crate)
+- **Purpose**: Closed-source genomics processing platform. High-throughput FASTA parser, ScyllaDB shard-per-core loader, blockchain-anchored validation escrow marketplace, and WebRTC vector visualization engine. Links against compiled Shoggoth SDK libraries.
+- **AGENTS.md**: `genex-platform/AGENTS.md` — Amber `#FF9900` + Obsidian palette. UNLICENSED proprietary. Single-crate structure; not a workspace member of `shoggoth-backbone`.
+
+### `npu-stack/` — ML Inference & Training Hub (Python FastAPI Microservices)
+- **Purpose**: GGUF edge model quantization, Unsloth fine-tuning loops, NVIDIA NIM inference integration, and OpenAI Triton cross-vendor kernel sharding. Provides REST API and WebSocket telemetry consumed by the Shoggoth dashboard.
+- **AGENTS.md**: `npu-stack/AGENTS.md` — Python 3.12+ with FastAPI. Communicates with Shoggoth Backbone via WebSocket on `localhost:9100`. Must pass `ruff` + `mypy` strict mode.

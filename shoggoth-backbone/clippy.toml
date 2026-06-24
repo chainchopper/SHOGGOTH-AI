@@ -1,0 +1,44 @@
+# Shoggoth Backbone — Clippy Lint Configuration
+# Applied to all 8 workspace crates.
+# Stricter than the workspace defaults in Cargo.toml.
+
+# Deny: these will cause the build to fail.
+- clippy::unwrap_used
+- clippy::expect_used
+- clippy::dbg_macro
+- clippy::todo
+- clippy::unimplemented
+- clippy::panic
+- clippy::indexing_slicing
+- clippy::string_slice
+- clippy::cast_possible_truncation
+- clippy::cast_sign_loss
+- clippy::cast_lossless
+- clippy::float_cmp
+- clippy::clone_on_ref_ptr
+- clippy::redundant_clone
+- clippy::inefficient_to_string
+- clippy::large_enum_variant
+- clippy::large_stack_frames
+- clippy::missing_errors_doc
+- clippy::missing_panics_doc
+- clippy::missing_safety_doc
+
+# Warn: these produce warnings but don't fail the build.
+- clippy::pedantic
+- clippy::nursery
+- clippy::cargo
+- clippy::restriction:
+    - clippy::print_stdout
+    - clippy::print_stderr
+    - clippy::missing_docs_in_private_items
+    - clippy::mod_module_files
+    - clippy::separated_literal_suffix
+    - clippy::self_named_module_files
+
+# Allow: explicitly permitted patterns.
+- clippy::module_name_repetitions
+- clippy::similar_names
+- clippy::too_many_lines
+- clippy::must_use_candidate
+- clippy::return_self_not_must_use

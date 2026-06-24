@@ -1,0 +1,48 @@
+[package]
+name = "shoggoth-sdk"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Public SDK for Shoggoth Mesh Machine: QUIC-multiplexed networking, JNI bridges, WSL2 Vsock proxies, Python bindings (PyO3), topology discovery, and asynchronous runtime engine for sharding workloads across edge and cloud."
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bincode = { workspace = true }
+rmp-serde = { workspace = true }
+quinn = { workspace = true }
+rustls = { workspace = true }
+rcgen = { workspace = true }
+dashmap = { workspace = true }
+xxhash-rust = { workspace = true }
+libc = { workspace = true }
+nix = { workspace = true }
+tracing = { workspace = true }
+uuid = { version = "1.0", features = ["v4"] }
+sha2 = { workspace = true }
+prometheus-client = "0.22"
+reqwest = { version = "0.12", features = ["json"] }
+hmac = "0.12"
+hex = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
+tokio-tungstenite = "0.24"
+futures-util = "0.3"
+wasm-bindgen = { version = "0.2", optional = true }
+axum = { version = "0.8", optional = true }
+
+# FFI for python bindings
+pyo3 = { workspace = true, optional = true }
+pyo3-async-runtimes = { version = "0.23", features = ["tokio-runtime"], optional = true }
+
+[features]
+default = []
+python-bindings = ["pyo3", "pyo3-async-runtimes"]
+wasm-bindings = ["wasm-bindgen"]
+metrics-server = ["axum"]
+
+[lib]
+crate-type = ["lib", "cdylib"]

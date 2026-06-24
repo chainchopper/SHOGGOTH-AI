@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1a1a2e" />
+  <meta name="description" content="Shoggoth Mesh Machine — Web Dashboard" />
+  <link rel="manifest" href="/manifest.json" />
+  <title>Shoggoth Dashboard</title>
+  <style>
+    :root {
+      --emerald: #00ff66;
+      --steel: #1a1a2e;
+      --steel-light: #2a2a4e;
+      --steel-dark: #0d0d1a;
+      --text: #e0e0e0;
+      --text-secondary: #8888aa;
+      --accent-amber: #ff9900;
+      --accent-red: #ff3344;
+      --border: #2a2a4e;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+      background: var(--steel-dark);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0.75rem 1.25rem; background: var(--steel); border-bottom: 1px solid var(--border);
+    }
+    header h1 { font-size: 1.1rem; font-weight: 600; }
+    header h1 span { color: var(--emerald); }
+    .metrics { display: flex; gap: 1.25rem; }
+    .metric { text-align: center; }
+    .metric-label { font-size: 0.55rem; color: var(--text-secondary); letter-spacing: 0.1em; }
+    .metric-value { font-size: 0.95rem; font-weight: 700; color: var(--text); }
+    main { padding: 1rem 1.25rem; max-width: 1400px; margin: 0 auto; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.75rem; }
+    .card {
+      background: var(--steel); border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.75rem;
+    }
+    .card-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.7rem; }
+    .card-name { font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .card-stats { display: flex; gap: 0.75rem; font-size: 0.7rem; color: var(--text-secondary); }
+    .status-online { color: var(--emerald); }
+    .status-offline { color: var(--accent-red); }
+    .tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; }
+    .tab { padding: 0.45rem 1rem; background: var(--steel); border: 1px solid var(--border); border-radius: 0.25rem; color: var(--text-secondary); cursor: pointer; font-family: inherit; font-size: 0.75rem; font-weight: 600; }
+    .tab.active { background: var(--steel-light); color: var(--emerald); border-color: var(--emerald); }
+    .launch-btn {
+      display: flex; flex-direction: column; align-items: center; padding: 1.5rem;
+      background: var(--steel); border: 1px solid var(--border); border-radius: 0.5rem;
+      cursor: pointer; color: var(--text); font-family: inherit; transition: border-color 0.2s;
+    }
+    .launch-btn:hover { border-color: var(--emerald); }
+    .launch-btn .icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .launch-btn .name { font-size: 0.85rem; font-weight: 600; color: var(--emerald); }
+    .launch-btn .desc { font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.25rem; }
+    footer { padding: 0.5rem 1.25rem; border-top: 1px solid var(--border); background: var(--steel); font-size: 0.6rem; color: var(--text-secondary); display: flex; justify-content: space-between; }
+    #toast { position: fixed; bottom: 1rem; right: 1rem; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-size: 0.8rem; z-index: 999; display: none; }
+  </style>
+</head>
+<body>
+<header>
+  <h1><span>⬡</span> SHOGGOTH</h1>
+  <div class="metrics">
+    <div class="metric"><div class="metric-label">NODES</div><div class="metric-value" id="node-count">-</div></div>
+    <div class="metric"><div class="metric-label">VRAM</div><div class="metric-value" id="vram-total">-</div></div>
+    <div class="metric"><div class="metric-label">FULL</div><div class="metric-value" id="full-count" style="color:var(--emerald)">-</div></div>
+  </div>
+</header>
+
+<main id="main-content">
+  <div class="tabs">
+    <button class="tab active" data-view="fabric">🔬 Hardware Fabric</button>
+    <button class="tab" data-view="launchpad">🚀 Launchpad</button>
+  </div>
+  <div id="view-content"></div>
+</main>
+
+<footer>
+  <span>Shoggoth Mesh Machine v0.1.0 — Emerald #00FF66</span>
+  <span id="footer-status">Connecting...</span>
+</footer>
+
+<div id="toast"></div>
+
+<script>
+const API = "http://localhost:9100";
+let view = "fabric";
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
+  t.classList.add("active");
+  view = t.dataset.view;
+  render();
+}));
+
+// ── Render ─────────────────────────────────────────────────────────────────────
+async function render() {
+  if (view === "fabric") await renderFabric();
+  else await renderLaunchpad();
+}
+
+async function api(path) {
+  const r = await fetch(API + path);
+  if (!r.ok) throw new Error(r.statusText);
+  return r.json();
+}
+
+async function renderFabric() {
+  const container = document.getElementById("view-content");
+  try {
+    const topo = await api("/topology");
+    document.getElementById("node-count").textContent = topo.total_nodes;
+    document.getElementById("vram-total").textContent = Math.round(topo.total_vram_gb) + " GB";
+    document.getElementById("full-count").textContent = topo.full_shoggoths;
+    document.getElementById("footer-status").textContent = `${topo.total_nodes} nodes · ${Math.round(topo.total_vram_gb)} GB VRAM`;
+
+    const cards = (topo.nodes || []).map(n => `
+      <div class="card">
+        <div class="card-header">
+          <span class="${n.accepting_work ? 'status-online' : 'status-offline'}">${n.accepting_work ? '● ONLINE' : '○ OFFLINE'}</span>
+          <span style="color:var(--text-secondary)">${n.tier}</span>
+        </div>
+        <div class="card-name">${n.node_id}</div>
+        <div class="card-stats"><span>${n.vram_gb} GB</span><span>${n.ping_ms?.toFixed(1) || '?'} ms</span><span>${n.temperature_c?.toFixed(0) || '?'}°C</span></div>
+      </div>
+    `).join("");
+    container.innerHTML = `<div class="grid">${cards}</div>`;
+  } catch {
+    container.innerHTML = `<p style="color:var(--accent-red)">Failed to connect to orchestrator at ${API}</p>`;
+  }
+}
+
+function renderLaunchpad() {
+  const container = document.getElementById("view-content");
+  const templates = [
+    { id: "render-farm", icon: "🎬", name: "Render Farm", desc: "BVH shard to RT cores. BC250 grid as rasterizers." },
+    { id: "heavy-compute", icon: "🧠", name: "Heavy Compute", desc: "Pipeline-parallel layer sharding. PyTorch + AlphaFold." },
+    { id: "async-game-runtime", icon: "🎮", name: "Async Game Runtime", desc: "Split UI/Sim to Edge, Lighting/AI to Cloud. 16K ready." },
+    { id: "genomic-processing", icon: "🧬", name: "Genomic Processing", desc: "FASTA + ScyllaDB shard-per-core + BC250 alignment." },
+  ];
+  container.innerHTML = `<div class="grid">${templates.map(t => `
+    <button class="launch-btn" onclick="launchTemplate('${t.id}')">
+      <span class="icon">${t.icon}</span>
+      <span class="name">${t.name}</span>
+      <span class="desc">${t.desc}</span>
+    </button>
+  `).join("")}</div>`;
+}
+
+window.launchTemplate = async (name) => {
+  try {
+    const r = await fetch(API + "/launch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ template_name: name, project_name: "web-dashboard" }),
+    });
+    const data = await r.json();
+    toast(`✓ Launched: ${data.template}`);
+  } catch (e) {
+    toast(`✗ ${e.message}`, false);
+  }
+};
+
+function toast(msg, ok = true) {
+  const t = document.getElementById("toast");
+  t.style.display = "block";
+  t.style.background = ok ? "var(--emerald)" : "var(--accent-red)";
+  t.style.color = ok ? "var(--steel-dark)" : "#fff";
+  t.textContent = msg;
+  setTimeout(() => t.style.display = "none", 3000);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+render();
+setInterval(render, 5000);
+
+// ── Service Worker registration ───────────────────────────────────────────────
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
+</script>
+</body>
+</html>

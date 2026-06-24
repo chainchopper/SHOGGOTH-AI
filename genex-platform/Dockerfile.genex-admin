@@ -1,0 +1,20 @@
+# GENEx Admin Panel — Dockerfile
+#
+# Builds the axum-based admin API server + static HTML admin panel.
+#
+# Build:
+#   docker build -t ghcr.io/chainchopper/genex-admin:latest -f Dockerfile.genex-admin .
+
+FROM rust:1.85-slim-bookworm AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+WORKDIR /build
+COPY Cargo.toml Cargo.lock* ./
+COPY src/ src/
+COPY admin/ admin/
+RUN cargo build --release --bin genex-admin-server && cp target/release/genex-admin-server /usr/local/bin/genex-admin
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /usr/local/bin/genex-admin /usr/local/bin/
+EXPOSE 9201
+CMD ["genex-admin"]

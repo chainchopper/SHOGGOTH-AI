@@ -1,0 +1,53 @@
+# Shoggoth Mesh Machine — Edge Device Compose
+#
+# Runs a headless node-agent alongside a lightweight WebRTC viewport server.
+# For edge devices (RTX 5090/4090 machines with displays attached).
+#
+# Usage:
+#   docker compose -f docker-compose.edge.yml up -d
+
+version: "3.9"
+
+services:
+  node-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.node-agent
+    container_name: shoggoth-edge-agent
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    runtime: nvidia
+    volumes:
+      - /dev/dri:/dev/dri:ro
+      - /dev/nvidia0:/dev/nvidia0:rw
+      - /dev/nvidiactl:/dev/nvidiactl:rw
+    environment:
+      - SHOGGOTH_NODE_ID=${HOSTNAME:-edge-node}
+      - SHOGGOTH_ORCHESTRATOR_ADDR=${ORCHESTRATOR_ADDR:-192.168.1.100:9100}
+      - SHOGGOTH_QUIC_PORT=9100
+      - RUST_LOG=shoggoth=info
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, utility, compute, video]
+
+  # Viewport is served by the shoggoth-display crate — build locally, not via Docker.
+  # See: shoggoth-display/ — uses webrtc-rs for sub-16ms streaming to the dashboard.
+  # viewport-server:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.viewport
+  #   container_name: shoggoth-edge-viewport
+  #   restart: unless-stopped
+  #   network_mode: host
+  #   runtime: nvidia
+  #   environment:
+  #     - SHOGGOTH_ORCHESTRATOR_URL=http://${ORCHESTRATOR_ADDR:-192.168.1.100}:9100
+  #     - VIEWPORT_RESOLUTION=${VIEWPORT_RESOLUTION:-3840x2160}
+  #     - VIEWPORT_FPS=${VIEWPORT_FPS:-60}
+  #   ports:
+  #     - "8080:8080"

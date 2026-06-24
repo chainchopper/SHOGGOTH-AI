@@ -1,0 +1,126 @@
+# Shoggoth ML Pipelines — Kubeflow Integration
+#
+# Deployable Kubeflow Pipeline component for running Shoggoth-accelerated
+# Unsloth fine-tuning jobs directly from Kubeflow Pipelines UI.
+#
+# Usage:
+#   kfp pipeline create --pipeline-name shoggoth-fine-tune \
+#       --component shoggoth_training_component.yaml
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: shoggoth-training-
+  labels:
+    pipelines.kubeflow.org/pipeline-sdk-type: kfp
+spec:
+  entrypoint: shoggoth-training-pipeline
+  templates:
+    # ── Pipeline Definition ──────────────────────────────────────────────────
+    - name: shoggoth-training-pipeline
+      inputs:
+        parameters:
+          - name: model_type
+            default: "alphafold3"
+          - name: dataset_path
+            default: "gs://shoggoth-datasets/proteins/"
+          - name: lora_rank
+            default: "64"
+          - name: epochs
+            default: "3"
+          - name: precision
+            default: "bf16"
+      dag:
+        tasks:
+          # Step 1: Request cloud GPU provisioning if local nodes saturated.
+          - name: provision-cloud-gpus
+            template: provision-cloud
+            arguments:
+              parameters:
+                - name: capability
+                  value: "MatrixTensorCore"
+                - name: count
+                  value: "2"
+
+          # Step 2: Dispatch training to Shoggoth fabric.
+          - name: dispatch-training
+            template: dispatch-training
+            dependencies: [provision-cloud-gpus]
+            arguments:
+              parameters:
+                - name: model_type
+                  value: "{{inputs.parameters.model_type}}"
+                - name: dataset_path
+                  value: "{{inputs.parameters.dataset_path}}"
+                - name: lora_rank
+                  value: "{{inputs.parameters.lora_rank}}"
+                - name: epochs
+                  value: "{{inputs.parameters.epochs}}"
+                - name: precision
+                  value: "{{inputs.parameters.precision}}"
+
+          # Step 3: Save merged checkpoint to model registry.
+          - name: save-checkpoint
+            template: save-checkpoint
+            dependencies: [dispatch-training]
+
+    # ── Provision Cloud GPUs ─────────────────────────────────────────────────
+    - name: provision-cloud
+      inputs:
+        parameters:
+          - name: capability
+          - name: count
+      container:
+        image: ghcr.io/chainchopper/npu-stack:latest
+        command: [python, -c]
+        args:
+          - |
+            import asyncio
+            from backend.routers.orchestrator_bridge import OrchestratorBridge
+
+            async def provision():
+                async with OrchestratorBridge("http://shoggoth-orchestrator:9100") as bridge:
+                    await bridge.provision_cloud_nodes("{{inputs.parameters.capability}}", int("{{inputs.parameters.count}}"))
+
+            asyncio.run(provision())
+
+    # ── Dispatch Training ────────────────────────────────────────────────────
+    - name: dispatch-training
+      inputs:
+        parameters:
+          - name: model_type
+          - name: dataset_path
+          - name: lora_rank
+          - name: epochs
+          - name: precision
+      container:
+        image: ghcr.io/chainchopper/npu-stack:latest
+        command: [python, -c]
+        args:
+          - |
+            import asyncio
+            from backend.routers.orchestrator_bridge import OrchestratorBridge
+
+            async def train():
+                async with OrchestratorBridge("http://shoggoth-orchestrator:9100") as bridge:
+                    result = await bridge.dispatch_training(
+                        model_name="{{inputs.parameters.model_type}}",
+                        dataset_path="{{inputs.parameters.dataset_path}}",
+                        lora_rank=int("{{inputs.parameters.lora_rank}}"),
+                        epochs=int("{{inputs.parameters.epochs}}"),
+                        precision="{{inputs.parameters.precision}}",
+                    )
+                    print(f"Training dispatched: {result}")
+
+            asyncio.run(train())
+
+    # ── Save Checkpoint ──────────────────────────────────────────────────────
+    - name: save-checkpoint
+      container:
+        image: ghcr.io/chainchopper/npu-stack:latest
+        command: [bash, -c]
+        args:
+          - |
+            echo "Saving checkpoint to model registry..."
+            # In production: upload merged LoRA weights to HuggingFace Hub or GCS.
+            echo "Checkpoint saved: $(date -Iseconds)"

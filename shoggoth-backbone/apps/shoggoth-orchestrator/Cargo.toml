@@ -1,0 +1,29 @@
+[package]
+name = "shoggoth-orchestrator"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Master orchestrator for the Shoggoth Mesh Machine. Ties together hardware fabric, node discovery, compute routing, display compositing, and the agentic parser into a single control plane daemon."
+
+[[bin]]
+name = "shoggoth-orchestrator"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+dashmap = { workspace = true }
+crossbeam-channel = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+axum = "0.8"
+tower-http = { version = "0.6", features = ["cors"] }
+shoggoth-core = { path = "../../packages/shoggoth-core" }
+shoggoth-sdk = { path = "../../packages/shoggoth-sdk" }
+shoggoth-display = { path = "../../packages/shoggoth-display" }
+shoggoth-agent = { path = "../../packages/shoggoth-agent" }

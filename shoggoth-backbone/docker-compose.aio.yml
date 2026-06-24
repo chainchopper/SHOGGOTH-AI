@@ -1,0 +1,144 @@
+# Shoggoth Mesh Machine — All-in-One Compose
+#
+# Everything on a single machine: orchestrator + 4 simulated node agents +
+# ScyllaDB + NPU-STACK + Prometheus + Grafana + Dashboard.
+# For demos, testing, and development on powerful workstations.
+#
+# Requirements:
+#   • 64+ GB RAM
+#   • NVIDIA GPU + nvidia-container-toolkit
+#   • Docker Compose v2
+#
+# Usage:
+#   docker compose -f docker-compose.aio.yml up -d
+#   open http://localhost:1420  # Dashboard
+#   open http://localhost:3000  # Grafana
+
+version: "3.9"
+
+services:
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.orchestrator
+    container_name: shoggoth-aio-orchestrator
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    volumes:
+      - /dev/dri:/dev/dri:ro
+      - /dev/shm/shoggoth:/dev/shm/shoggoth
+    environment:
+      - SHOGGOTH_ROLE=orchestrator
+      - RUST_LOG=shoggoth=info
+      - SHOGGOTH_DISCOVERY_ADDR=0.0.0.0:8888
+
+  node-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.node-agent
+    container_name: shoggoth-aio-node-1
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    volumes:
+      - /dev/dri:/dev/dri:ro
+    environment:
+      - SHOGGOTH_NODE_ID=aio-rtx-5090
+      - SHOGGOTH_ORCHESTRATOR_ADDR=localhost:9100
+      - RUST_LOG=shoggoth=info
+
+  node-2:
+    build:
+      context: .
+      dockerfile: Dockerfile.node-agent
+    container_name: shoggoth-aio-node-2
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    volumes:
+      - /dev/dri:/dev/dri:ro
+    environment:
+      - SHOGGOTH_NODE_ID=aio-rtx-4090
+      - SHOGGOTH_ORCHESTRATOR_ADDR=localhost:9100
+      - RUST_LOG=shoggoth=info
+
+  node-3:
+    build:
+      context: .
+      dockerfile: Dockerfile.node-agent
+    container_name: shoggoth-aio-node-3
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    volumes:
+      - /dev/dri:/dev/dri:ro
+    environment:
+      - SHOGGOTH_NODE_ID=aio-bc250-01
+      - SHOGGOTH_ORCHESTRATOR_ADDR=localhost:9100
+      - RUST_LOG=shoggoth=info
+
+  node-4:
+    build:
+      context: .
+      dockerfile: Dockerfile.node-agent
+    container_name: shoggoth-aio-node-4
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    volumes:
+      - /dev/dri:/dev/dri:ro
+    environment:
+      - SHOGGOTH_NODE_ID=aio-mi50-01
+      - SHOGGOTH_ORCHESTRATOR_ADDR=localhost:9100
+      - RUST_LOG=shoggoth=info
+
+  scylla:
+    image: scylladb/scylla:6.2
+    container_name: shoggoth-aio-scylla
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - scylla-aio-data:/var/lib/scylla
+    environment:
+      - SCYLLA_CLUSTER_NAME=shoggoth-aio
+      - SCYLLA_LISTEN_ADDRESS=0.0.0.0
+    command: ["--smp=8", "--memory=16G", "--developer-mode=0"]
+
+  npu-stack:
+    build:
+      context: ../npu-stack
+      dockerfile: Dockerfile
+    container_name: shoggoth-aio-npu
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - SHOGGOTH_ORCHESTRATOR_ADDR=localhost:9100
+
+  prometheus:
+    image: prom/prometheus:v3.0
+    container_name: shoggoth-aio-prometheus
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-aio-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+
+  grafana:
+    image: grafana/grafana:11.0
+    container_name: shoggoth-aio-grafana
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=shoggoth
+    volumes:
+      - grafana-aio-data:/var/lib/grafana
+
+volumes:
+  scylla-aio-data:
+  prometheus-aio-data:
+  grafana-aio-data:

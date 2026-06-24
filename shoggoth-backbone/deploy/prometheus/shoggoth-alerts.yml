@@ -1,0 +1,87 @@
+# Shoggoth Mesh Machine — Prometheus Alert Rules
+#
+# Copy to /etc/prometheus/rules/shoggoth.yml
+# or include in your Prometheus config:
+#   rule_files:
+#     - "shoggoth.yml"
+
+groups:
+  - name: shoggoth_node_alerts
+    interval: 15s
+    rules:
+      # ── Node Offline ──
+      - alert: ShoggothNodeOffline
+        expr: shoggoth_nodes_total - shoggoth_nodes_online > 0
+        for: 30s
+        labels:
+          severity: critical
+          component: shoggoth
+        annotations:
+          summary: "Shoggoth node offline"
+          description: "{{ $value }} node(s) are not accepting work. Check node-agent logs."
+
+      # ── High GPU Temperature ──
+      - alert: ShoggothHighGPUTemperature
+        expr: shoggoth_node_temperature_c > 85
+        for: 1m
+        labels:
+          severity: warning
+          component: shoggoth
+        annotations:
+          summary: "GPU temperature exceeds 85°C on {{ $labels.node_id }}"
+          description: "Current temperature: {{ $value }}°C. Check cooling."
+
+      # ── Critical GPU Temperature ──
+      - alert: ShoggothCriticalGPUTemperature
+        expr: shoggoth_node_temperature_c > 95
+        for: 30s
+        labels:
+          severity: critical
+          component: shoggoth
+        annotations:
+          summary: "GPU thermal shutdown imminent on {{ $labels.node_id }}"
+          description: "Temperature: {{ $value }}°C. Throttling workloads."
+
+      # ── High VRAM Utilization ──
+      - alert: ShoggothHighVRAMUsage
+        expr: shoggoth_node_utilization_pct > 95
+        for: 5m
+        labels:
+          severity: warning
+          component: shoggoth
+        annotations:
+          summary: "GPU VRAM > 95% utilized on {{ $labels.node_id }}"
+          description: "Consider scaling out to cloud nodes. Utilization: {{ $value }}%."
+
+      # ── High Task Failure Rate ──
+      - alert: ShoggothHighTaskFailureRate
+        expr: rate(shoggoth_tasks_failed_total[5m]) / rate(shoggoth_tasks_dispatched_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          component: shoggoth
+        annotations:
+          summary: "Task failure rate > 5%"
+          description: "{{ $value | humanizePercentage }} of work units are failing."
+
+      # ── High Network Latency ──
+      - alert: ShoggothHighNetworkLatency
+        expr: shoggoth_node_ping_ms > 50
+        for: 2m
+        labels:
+          severity: warning
+          component: shoggoth
+        annotations:
+          summary: "High network latency to {{ $labels.node_id }}: {{ $value }}ms"
+          description: "Check network switch and cables."
+
+      # ── Cloud Cost Overrun ──
+      - alert: ShoggothCloudCostOverrun
+        expr: rate(shoggoth_cloud_cost_total_cents[1h]) * 3600 / 100 > 20
+        for: 10m
+        labels:
+          severity: info
+          component: shoggoth
+        annotations:
+          summary: "Cloud spend rate exceeds $20/hr"
+          description: "Current rate: ${{ $value }}/hr. Review provisioned instances."

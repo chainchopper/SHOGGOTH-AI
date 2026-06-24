@@ -1,0 +1,76 @@
+# Shoggoth Orchestrator — Dockerfile
+#
+# Multi-stage build: compiles the Rust orchestrator binary in a builder image,
+# then copies it to a minimal runtime image.
+#
+# Build:
+#   docker build -t ghcr.io/chainchopper/shoggoth-orchestrator:latest \
+#     -f Dockerfile.orchestrator .
+#
+# Run:
+#   docker run --network host \
+#     -v /dev/dri:/dev/dri \
+#     -v /dev/shm/shoggoth:/dev/shm/shoggoth \
+#     ghcr.io/chainchopper/shoggoth-orchestrator:latest
+
+# ── Build Stage ────────────────────────────────────────────────────────────────
+FROM rust:1.85-slim-bookworm AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Copy workspace manifests first for dependency caching.
+COPY Cargo.toml Cargo.lock* ./
+COPY packages/shoggoth-core/Cargo.toml packages/shoggoth-core/
+COPY packages/shoggoth-sdk/Cargo.toml packages/shoggoth-sdk/
+COPY packages/shoggoth-display/Cargo.toml packages/shoggoth-display/
+COPY packages/shoggoth-agent/Cargo.toml packages/shoggoth-agent/
+COPY apps/shoggoth-orchestrator/Cargo.toml apps/shoggoth-orchestrator/
+
+# Create dummy source files so cargo can download dependencies.
+RUN mkdir -p packages/shoggoth-core/src && \
+    echo "fn main() {}" > packages/shoggoth-core/src/lib.rs && \
+    mkdir -p packages/shoggoth-sdk/src && \
+    echo "fn main() {}" > packages/shoggoth-sdk/src/lib.rs && \
+    mkdir -p packages/shoggoth-display/src && \
+    echo "fn main() {}" > packages/shoggoth-display/src/lib.rs && \
+    mkdir -p packages/shoggoth-agent/src && \
+    echo "fn main() {}" > packages/shoggoth-agent/src/lib.rs && \
+    mkdir -p apps/shoggoth-orchestrator/src && \
+    echo "fn main() {}" > apps/shoggoth-orchestrator/src/main.rs
+
+# Download and compile dependencies (cached layer).
+RUN cargo build --release -p shoggoth-orchestrator && \
+    rm -rf packages/*/src apps/*/src target/release/deps/shoggoth*
+
+# Copy actual source code.
+COPY packages/ packages/
+COPY apps/ apps/
+
+# Build the orchestrator binary.
+RUN cargo build --release -p shoggoth-orchestrator && \
+    cp target/release/shoggoth-orchestrator /usr/local/bin/
+
+# ── Runtime Stage ──────────────────────────────────────────────────────────────
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create shoggoth user.
+RUN useradd -m -s /bin/bash shoggoth
+
+COPY --from=builder /usr/local/bin/shoggoth-orchestrator /usr/local/bin/
+
+USER shoggoth
+WORKDIR /opt/shoggoth
+
+EXPOSE 9100 9101 9102
+CMD ["shoggoth-orchestrator"]

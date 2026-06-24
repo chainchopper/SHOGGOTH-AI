@@ -1,0 +1,113 @@
+[workspace]
+resolver = "2"
+members = [
+    "packages/shoggoth-core",
+    "packages/shoggoth-sdk",
+    "packages/shoggoth-display",
+    "packages/shoggoth-node-agent",
+    "packages/shoggoth-agent",
+    "apps/shoggoth-cli",
+    "apps/shoggoth-orchestrator",
+    "apps/shoggoth-desktop/src-tauri",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["Shoggoth Mesh Machine Contributors"]
+license = "Apache-2.0"
+repository = "https://github.com/chainchopper/shoggoth-backbone"
+rust-version = "1.85"
+
+[workspace.dependencies]
+# ── Async Runtime ──
+tokio = { version = "1.43", features = ["full"] }
+tokio-util = "0.7"
+
+# ── Cross-Vendor Graphics & Compute ──
+wgpu = "24.0"
+naga = "24.0"
+shaderc = "0.9"
+
+# ── Networking & Streaming ──
+webrtc = "0.11"
+quinn = "0.11"
+rustls = { version = "0.23", features = ["ring"], default-features = false }
+rcgen = "0.13"
+s2n-quic = "0.53"
+
+# ── Serialization ──
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bincode = "1.3"
+rmp-serde = "1.3"
+
+# ── Concurrency Primitives ──
+crossbeam-channel = "0.5"
+crossbeam-deque = "0.8"
+dashmap = "6.1"
+parking_lot = "0.12"
+flurry = "0.5"
+
+# ── Hashing & Crypto ──
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+blake3 = "1.5"
+sha2 = "0.10"
+x509-parser = "0.16"
+
+# ── FFI & System ──
+libc = "0.2"
+nix = { version = "0.29", features = ["ioctl", "socket", "uio"] }
+memmap2 = "0.9"
+
+# ── CLI ──
+clap = { version = "4.5", features = ["derive", "env"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# ── Dashboard (Tauri) ──
+tauri = { version = "2.2", features = ["tray-icon"] }
+tauri-build = "2.0"
+serde-wasm-bindgen = "0.6"
+
+# ── Python Bindings ──
+pyo3 = { version = "0.23", features = ["extension-module"] }
+
+# ── Testing & Benchmarking ──
+criterion = "0.5"
+proptest = "1.6"
+rstest = "0.24"
+tokio-test = "0.4"
+
+# ── Compression & Crypto ──
+zstd = { version = "0.13", default-features = false }
+lz4-flex = "0.11"
+flate2 = "1.0"
+ring = "0.17"
+getrandom = "0.2"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+cargo = "warn"
+unwrap_used = "warn"
+expect_used = "warn"
+dbg_macro = "warn"
+print_stdout = "warn"
+print_stderr = "warn"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+
+[profile.dev]
+opt-level = 0

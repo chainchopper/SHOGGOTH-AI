@@ -1,0 +1,48 @@
+# Shoggoth Mesh Machine — CODEOWNERS
+#
+# Defines who owns which parts of the codebase for automatic PR review assignment.
+# GitHub will request reviews from these owners when files in their scope change.
+
+# ── Global ─────────────────────────────────────────────────────────────────────
+* @chainchopper
+
+# ── Core Engine ────────────────────────────────────────────────────────────────
+shoggoth-backbone/packages/shoggoth-core/   @chainchopper
+shoggoth-backbone/packages/shoggoth-sdk/    @chainchopper
+
+# ── Display & Streaming ────────────────────────────────────────────────────────
+shoggoth-backbone/packages/shoggoth-display/ @chainchopper
+
+# ── Orchestration & Agentic Layer ──────────────────────────────────────────────
+shoggoth-backbone/packages/shoggoth-agent/  @chainchopper
+shoggoth-backbone/apps/shoggoth-orchestrator/ @chainchopper
+
+# ── Node Agent ─────────────────────────────────────────────────────────────────
+shoggoth-backbone/packages/shoggoth-node-agent/ @chainchopper
+
+# ── CLI & Dashboard ────────────────────────────────────────────────────────────
+shoggoth-backbone/apps/shoggoth-cli/        @chainchopper
+shoggoth-backbone/apps/shoggoth-desktop/    @chainchopper
+
+# ── Deployment & Infrastructure ────────────────────────────────────────────────
+shoggoth-backbone/deploy/                   @chainchopper
+shoggoth-backbone/.github/                  @chainchopper
+shoggoth-backbone/Dockerfile*               @chainchopper
+shoggoth-backbone/docker-compose*           @chainchopper
+
+# ── Client SDKs ────────────────────────────────────────────────────────────────
+shoggoth-backbone/clients/                  @chainchopper
+
+# ── Documentation ──────────────────────────────────────────────────────────────
+shoggoth-backbone/docs/                     @chainchopper
+shoggoth-backbone/*.md                      @chainchopper
+
+# ── GENEx Platform (proprietary) ───────────────────────────────────────────────
+genex-platform/                             @chainchopper
+
+# ── NPU-STACK ──────────────────────────────────────────────────────────────────
+npu-stack/                                  @chainchopper
+
+# ── CI/CD & Automation ─────────────────────────────────────────────────────────
+.github/                                    @chainchopper
+Makefile                                    @chainchopper

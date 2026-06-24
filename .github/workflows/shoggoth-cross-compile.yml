@@ -1,0 +1,107 @@
+# Shoggoth Backbone — Cross-Compilation CI Matrix
+#
+# Extends the main CI workflow with aarch64 and wasm32 targets.
+# Run nightly or on-demand for cross-platform validation.
+#
+# Trigger: workflow_dispatch (manual) or schedule (weekly).
+
+name: Shoggoth Cross-Compile
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1" # Every Monday at 06:00 UTC
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  cross-compile:
+    name: Cross-Compile (${{ matrix.target }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - aarch64-unknown-linux-gnu
+          - wasm32-unknown-unknown
+          - x86_64-pc-windows-gnu
+    defaults:
+      run:
+        working-directory: shoggoth-backbone
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.85"
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation toolchain
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            shoggoth-backbone/target
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('shoggoth-backbone/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.target }}-cargo-
+
+      - name: Configure linker for aarch64
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          mkdir -p .cargo
+          echo '[target.aarch64-unknown-linux-gnu]' >> .cargo/config.toml
+          echo 'linker = "aarch64-linux-gnu-gcc"' >> .cargo/config.toml
+
+      - name: Build node-agent for ${{ matrix.target }}
+        run: cargo build --release -p shoggoth-node-agent --target ${{ matrix.target }}
+
+      - name: Build CLI for ${{ matrix.target }}
+        run: cargo build --release -p shoggoth-cli --target ${{ matrix.target }}
+
+      - name: Build core library for ${{ matrix.target }}
+        run: cargo build --release -p shoggoth-core --target ${{ matrix.target }}
+
+      - name: Build SDK for ${{ matrix.target }}
+        run: cargo build --release -p shoggoth-sdk --target ${{ matrix.target }}
+
+      - name: WASM pack (wasm32 only)
+        if: matrix.target == 'wasm32-unknown-unknown'
+        run: |
+          cargo install wasm-pack || true
+          wasm-pack build --target web packages/shoggoth-sdk --features wasm-bindings || echo "WASM build skipped (optional)"
+
+  # ── Docker Multi-Arch Build ──────────────────────────────────────────────────
+  docker-multiarch:
+    name: Docker Multi-Arch
+    runs-on: ubuntu-24.04
+    needs: [cross-compile]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build multi-arch node-agent
+        uses: docker/build-push-action@v6
+        with:
+          context: shoggoth-backbone
+          file: shoggoth-backbone/Dockerfile.node-agent
+          platforms: linux/amd64,linux/arm64
+          push: false
+          tags: ghcr.io/chainchopper/shoggoth-node-agent:latest

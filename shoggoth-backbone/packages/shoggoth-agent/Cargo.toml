@@ -1,0 +1,19 @@
+[package]
+name = "shoggoth-agent"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Agentic orchestration layer: AST-based code parser for workload classification, hardware-aware routing engine, and SDK onboarding template manager for the Shoggoth Mesh Machine."
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+dashmap = { workspace = true }
+shoggoth-sdk = { path = "../shoggoth-sdk" }
+
+[dev-dependencies]
+rstest = { workspace = true }

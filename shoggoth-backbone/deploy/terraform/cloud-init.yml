@@ -1,0 +1,48 @@
+#cloud-config
+# Shoggoth Cloud Node — Bootstrap Configuration
+#
+# Applied as user-data when provisioning cloud GPU instances.
+# Automatically:
+#   1. Installs NVIDIA drivers + CUDA toolkit.
+#   2. Joins Tailscale mesh VPN.
+#   3. Pulls and starts shoggoth-node-agent container.
+#   4. Registers with the orchestrator via QUIC.
+
+write_files:
+  - path: /opt/shoggoth/node.env
+    content: |
+      SHOGGOTH_NODE_ID=${node_id}
+      SHOGGOTH_ORCHESTRATOR_ADDR=${orchestrator_addr}
+      SHOGGOTH_VERSION=${shoggoth_version}
+      RUST_LOG=shoggoth=info
+
+runcmd:
+  # ── 1. NVIDIA Drivers ──
+  - apt-get update && apt-get install -y nvidia-driver-570 nvidia-cuda-toolkit
+  - nvidia-smi
+
+  # ── 2. Tailscale ──
+  - curl -fsSL https://tailscale.com/install.sh | sh
+  - tailscale up --auth-key ${tailscale_key} --hostname shoggoth-${node_id}
+
+  # ── 3. Docker + NVIDIA Container Toolkit ──
+  - apt-get install -y docker.io nvidia-container-toolkit
+  - systemctl enable --now docker
+
+  # ── 4. Pull and run node agent ──
+  - docker pull ghcr.io/chainchopper/shoggoth-node-agent:${shoggoth_version}
+  - |
+    docker run -d \
+      --name shoggoth-node-agent \
+      --network host \
+      --privileged \
+      --gpus all \
+      --restart always \
+      --env-file /opt/shoggoth/node.env \
+      -v /dev/dri:/dev/dri \
+      ghcr.io/chainchopper/shoggoth-node-agent:${shoggoth_version}
+
+  # ── 5. Health check ──
+  - sleep 15 && docker logs shoggoth-node-agent
+
+final_message: "Shoggoth cloud node ${node_id} is online. Joined Tailscale mesh and fabric."

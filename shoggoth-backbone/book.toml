@@ -1,0 +1,26 @@
+[book]
+title = "Shoggoth SDK Documentation"
+authors = ["Shoggoth Mesh Machine Contributors"]
+language = "en"
+description = "Developer documentation for the Shoggoth Mesh Machine — a virtualized heterogeneous hardware fabric."
+src = "docs"
+
+[build]
+build-dir = "target/book"
+create-missing = true
+
+[preprocessor]
+# No preprocessors needed for pure Markdown docs.
+
+[output.html]
+mathjax-support = true
+site-url = "/shoggoth-sdk/"
+git-repository-url = "https://github.com/chainchopper/shoggoth-backbone"
+edit-url-template = "https://github.com/chainchopper/shoggoth-backbone/edit/main/{path}"
+
+[output.html.fold]
+enable = true
+level = 0
+
+[rust]
+edition = "2024"

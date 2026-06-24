@@ -1,0 +1,58 @@
+# GENEx Platform — Docker Compose
+#
+# Deploys the GENEx genomics processing appliance alongside ScyllaDB.
+# Links to a running Shoggoth orchestrator for compute fabric access.
+#
+# Usage:
+#   docker compose -f genex-platform/docker-compose.genex.yml up -d
+
+version: "3.9"
+
+services:
+  genex-daemon:
+    build:
+      context: .
+      dockerfile: Dockerfile.genex
+    container_name: genex-daemon
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    volumes:
+      - /dev/shm/shoggoth:/dev/shm/shoggoth
+      - ./data:/data:rw
+      - ./config/genex.toml:/etc/genex/config.toml:ro
+    environment:
+      - SHOGGOTH_ORCHESTRATOR_SOCK=/dev/shm/shoggoth/orchestrator.sock
+      - GENEX_SCYLLA_NODES=${SCYLLA_NODES:-localhost}
+      - GENEX_SCYLLA_KEYSPACE=genex
+      - RUST_LOG=genex=info
+
+  scylla:
+    image: scylladb/scylla:6.2
+    container_name: genex-scylla
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - genex-scylla-data:/var/lib/scylla
+      - ./schema.cql:/docker-entrypoint-initdb.d/01-schema.cql:ro
+    environment:
+      - SCYLLA_CLUSTER_NAME=genex-cluster
+      - SCYLLA_DC=genex-dc1
+      - SCYLLA_LISTEN_ADDRESS=0.0.0.0
+    command: ["--smp=16", "--memory=32G", "--developer-mode=0"]
+
+  genex-admin:
+    build:
+      context: .
+      dockerfile: Dockerfile.genex-admin
+    container_name: genex-admin-panel
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - GENEX_API_URL=http://localhost:9200
+      - GENEX_ADMIN_PORT=9201
+    ports:
+      - "9201:9201"
+
+volumes:
+  genex-scylla-data:

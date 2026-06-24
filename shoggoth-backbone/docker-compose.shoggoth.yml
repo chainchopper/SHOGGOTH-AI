@@ -1,0 +1,85 @@
+# Shoggoth Mesh Machine — Docker Compose
+#
+# Global cluster container and WSL deployment configuration.
+# Deploys the Shoggoth Node Agent on every machine in the fabric.
+#
+# Usage:
+#   docker compose -f docker-compose.shoggoth.yml up -d
+#
+# On BC250 APU nodes: docker compose up shoggoth-node-agent
+# On Xeon Brain:      docker compose up shoggoth-orchestrator
+
+version: "3.9"
+
+services:
+  # ── Shoggoth Orchestrator (Xeon Brain) ────────────────────────────────────────
+  shoggoth-orchestrator:
+    image: ghcr.io/chainchopper/shoggoth-orchestrator:latest
+    container_name: shoggoth-orchestrator
+    restart: unless-stopped
+    network_mode: host
+    privileged: true  # Required for DMA-BUF fd passing and HugeTLB configuration.
+    volumes:
+      - /dev/dri:/dev/dri:ro              # GPU render nodes
+      - /dev/shm/shoggoth:/dev/shm/shoggoth  # Shared memory rings
+      - /mnt/shoggoth-backups:/backups    # ScyllaDB backups
+    environment:
+      - SHOGGOTH_ROLE=orchestrator
+      - SHOGGOTH_TELEMETRY_PORT=9101
+      - RUST_LOG=shoggoth=info
+    command: ["shoggoth", "deploy"]
+
+  # ── Shoggoth Node Agent (BC250 APUs, Cloud Instances) ─────────────────────────
+  shoggoth-node-agent:
+    image: ghcr.io/chainchopper/shoggoth-node-agent:latest
+    container_name: shoggoth-node-agent
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    volumes:
+      - /dev/dri:/dev/dri:ro
+    environment:
+      - SHOGGOTH_ROLE=node-agent
+      - SHOGGOTH_ORCHESTRATOR_ADDR=192.168.1.100:9100
+      - SHOGGOTH_NODE_ID=${HOSTNAME:-unknown-node}
+      - RUST_LOG=shoggoth=info
+
+  # ── NPU-STACK FastAPI Service ─────────────────────────────────────────────────
+  npu-stack:
+    build:
+      context: ../npu-stack
+      dockerfile: Dockerfile
+    container_name: npu-stack
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ../npu-stack/checkpoints:/app/checkpoints
+      - ../npu-stack/datasets:/app/datasets
+    environment:
+      - SHOGGOTH_ORCHESTRATOR_ADDR=localhost:9100
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - shoggoth-orchestrator
+
+  # ── ScyllaDB (Genomic Data Store) ────────────────────────────────────────────
+  scylla:
+    image: scylladb/scylla:6.2
+    container_name: shoggoth-scylla
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - scylla-data:/var/lib/scylla
+    environment:
+      - SCYLLA_CLUSTER_NAME=shoggoth-genex
+      - SCYLLA_DC=shoggoth-dc1
+      - SCYLLA_RACK=rack1
+      - SCYLLA_LISTEN_ADDRESS=0.0.0.0
+    command:
+      - --smp=72                    # Pin to all 72 Xeon threads
+      - --memory=128G               # Allocate 128GB to ScyllaDB
+      - --developer-mode=0
+      - --overprovisioned=0
+
+volumes:
+  scylla-data:
+    driver: local

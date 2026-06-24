@@ -1,0 +1,27 @@
+[package]
+name = "shoggoth-node-agent"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Daemon running on every Shoggoth cluster node: UDP heartbeat broadcast, QUIC control-plane listener, Vulkan/DX12 device reporting, and workload dispatch. Runs headless on BC250 APUs, cloud instances, and edge consumer devices."
+
+[[bin]]
+name = "shoggoth-node-agent"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bincode = { workspace = true }
+quinn = { workspace = true }
+rustls = { workspace = true }
+rcgen = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+shoggoth-core = { path = "../shoggoth-core" }
+shoggoth-sdk = { path = "../shoggoth-sdk" }
+wgpu = { workspace = true }

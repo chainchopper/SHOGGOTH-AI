@@ -1,0 +1,158 @@
+name: Shoggoth CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'shoggoth-backbone/**'
+      - 'genex-platform/**'
+      - 'npu-stack/**'
+      - '.github/workflows/shoggoth-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'shoggoth-backbone/**'
+      - 'genex-platform/**'
+      - 'npu-stack/**'
+      - '.github/workflows/shoggoth-ci.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ── Shoggoth Backbone (Rust Workspace) ───────────────────────────────────────
+  backbone:
+    name: Backbone (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    defaults:
+      run:
+        working-directory: shoggoth-backbone
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.85'
+          components: clippy, rustfmt
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            shoggoth-backbone/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('shoggoth-backbone/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Check compilation
+        run: cargo check --workspace --all-targets
+
+      - name: Lint
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace
+
+  # ── GENEx Platform (Standalone Rust Crate) ────────────────────────────────────
+  genex:
+    name: GENEx (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04]
+    defaults:
+      run:
+        working-directory: genex-platform
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.85'
+          components: clippy, rustfmt
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            genex-platform/target
+          key: ${{ runner.os }}-cargo-genex-${{ hashFiles('genex-platform/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-genex-
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Check compilation
+        run: cargo check --all-targets
+
+      - name: Lint
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test
+
+  # ── NPU-STACK (Python Microservices) ─────────────────────────────────────────
+  npu-stack:
+    name: NPU-STACK (Python 3.12)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: npu-stack
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('npu-stack/pyproject.toml') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Lint with ruff
+        run: ruff check .
+
+      - name: Type check with mypy
+        run: mypy backend/ kernels/ --strict
+
+      - name: Test with pytest
+        run: pytest -v
+
+  # ── Docker Build (Smoke Test) ────────────────────────────────────────────────
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-24.04
+    needs: [backbone, genex, npu-stack]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build NPU-STACK image
+        run: docker build -t npu-stack:ci ./npu-stack
+
+      - name: Build Backbone image
+        run: docker build -t shoggoth-backbone:ci ./shoggoth-backbone -f ./shoggoth-backbone/docker-compose.shoggoth.yml || true

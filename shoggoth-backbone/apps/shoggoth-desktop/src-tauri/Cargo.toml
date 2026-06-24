@@ -1,0 +1,24 @@
+[package]
+name = "shoggoth-desktop"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Tauri v2 desktop GUI: Shoggoth administration hub with WebGL2-accelerated emerald console, live telemetry, one-click Launchpad templates, and Intel QAT hooks."
+
+[build-dependencies]
+tauri-build = { workspace = true }
+
+[dependencies]
+tauri = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+dashmap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+shoggoth-core = { path = "../../../packages/shoggoth-core" }
+shoggoth-sdk = { path = "../../../packages/shoggoth-sdk" }
+shoggoth-display = { path = "../../../packages/shoggoth-display" }
