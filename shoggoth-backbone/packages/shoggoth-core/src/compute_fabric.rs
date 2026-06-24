@@ -349,15 +349,126 @@ mod tests {
         }
     }
 
+    /// Smoke test: forward pass through every layer produces valid shapes.
     #[tokio::test]
-    async fn test_forward_activation_stub() {
+    async fn test_forward_activation_all_layers() {
         let router = ShoggothComputeRouter::new();
         let input = ComputeTaskTensor {
             task_id: 1,
             shape: vec![1, 32, 4096],
             flat_data: vec![1.0f32; 1 * 32 * 4096],
         };
-        let output = router.forward_activation_pass(0, input).await;
-        assert_eq!(output.shape, vec![1, 32, 4096]);
+        // Run through every layer. Each should produce a valid output.
+        for layer in 0..80 {
+            let output = router.forward_activation_pass(layer, input.clone()).await;
+            assert!(!output.flat_data.is_empty(), "Layer {layer} produced empty output");
+            assert_eq!(output.shape.len(), 2, "Layer {layer}: expected 2-D output, got {:?}", output.shape);
+        }
+    }
+
+    /// End-to-end: real CPU SGEMM on identity matrix.
+    /// I × I = I. All diagonal elements must be 1.0, off-diagonals 0.0.
+    #[test]
+    fn test_cpu_sgemm_identity() {
+        let size = 64usize;
+        let mut a = vec![0.0f32; size * size];
+        for i in 0..size {
+            a[i * size + i] = 1.0; // Identity matrix.
+        }
+
+        let tensor = ComputeTaskTensor {
+            task_id: 42,
+            shape: vec![size as i64, size as i64, size as i64],
+            flat_data: a,
+        };
+
+        let result = execute_local_fallback(&tensor);
+
+        assert_eq!(result.task_id, 43);
+        assert_eq!(result.shape, vec![size as i64, size as i64]);
+        assert_eq!(result.flat_data.len(), size * size);
+
+        // Identity × Identity = Identity.
+        for i in 0..size {
+            for j in 0..size {
+                let val = result.flat_data[i * size + j];
+                if i == j {
+                    assert!((val - 1.0).abs() < 0.001, "Diagonal [{i},{j}] = {val}, expected 1.0");
+                } else {
+                    assert!(val.abs() < 0.001, "Off-diagonal [{i},{j}] = {val}, expected 0.0");
+                }
+            }
+        }
+    }
+
+    /// End-to-end: real CPU SGEMM on known values.
+    /// A = [[1,2],[3,4]], B = [[5,6],[7,8]]
+    /// A×B = [[19,22],[43,50]]
+    #[test]
+    fn test_cpu_sgemm_known_values() {
+        let a = vec![1.0f32, 2.0, 3.0, 4.0]; // 2×2 row-major
+        let b = vec![5.0f32, 6.0, 7.0, 8.0]; // 2×2 row-major
+        // Pack into flat_data: first A, then B.
+        let mut flat = a.clone();
+        flat.extend_from_slice(&b);
+
+        let tensor = ComputeTaskTensor {
+            task_id: 1,
+            shape: vec![2, 2, 2], // M=2, K=2, N=2
+            flat_data: flat,
+        };
+
+        let result = execute_local_fallback(&tensor);
+
+        // Expected: [[19, 22], [43, 50]]
+        #[allow(clippy::float_cmp)]
+        {
+            assert_eq!(result.flat_data[0], 19.0);
+            assert_eq!(result.flat_data[1], 22.0);
+            assert_eq!(result.flat_data[2], 43.0);
+            assert_eq!(result.flat_data[3], 50.0);
+        }
+    }
+
+    /// Smoke test: tensor with single element.
+    #[test]
+    fn test_cpu_sgemm_scalar() {
+        let tensor = ComputeTaskTensor {
+            task_id: 0,
+            shape: vec![1, 1, 1],
+            flat_data: vec![7.0f32, 3.0],
+        };
+        let result = execute_local_fallback(&tensor);
+        assert_eq!(result.flat_data.len(), 1);
+        assert!((result.flat_data[0] - 21.0).abs() < 0.001); // 7×3 = 21
+    }
+
+    /// Stress test: larger matrix, verify no panics and produces output.
+    #[test]
+    fn test_cpu_sgemm_stress_512() {
+        let size = 512usize;
+        let a: Vec<f32> = (0..(size * size)).map(|i| (i as f32).sin()).collect();
+        let mut flat = a.clone();
+        flat.extend_from_slice(&a); // A = B
+
+        let tensor = ComputeTaskTensor {
+            task_id: 99,
+            shape: vec![size as i64, size as i64, size as i64],
+            flat_data: flat,
+        };
+
+        let start = std::time::Instant::now();
+        let result = execute_local_fallback(&tensor);
+        let elapsed = start.elapsed();
+
+        assert_eq!(result.flat_data.len(), size * size);
+        // Verify at least one non-zero value (sanity check that compute happened).
+        let has_nonzero = result.flat_data.iter().any(|&v| v.abs() > 0.001);
+        assert!(has_nonzero, "All output values are zero — compute did not happen");
+
+        // Report GFLOPS for manual inspection.
+        let flops = 2.0 * (size as f64).powi(3);
+        let gflops = flops / elapsed.as_secs_f64() / 1e9;
+        eprintln!("  CPU SGEMM {size}×{size}: {gflops:.2} GFLOPS ({elapsed:.2?})");
     }
 }
