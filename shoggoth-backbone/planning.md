@@ -1,7 +1,7 @@
 # SHOGGOTH BACKBONE — EXECUTION PLAN
 
-> **Document Status**: ACTIVE SPRINT — WAVE 11: REAL CLI + SATURATOR + SMOKE TESTS (2026-06-24)  
-> **Last Updated**: 2026-06-24  
+> **Document Status**: ACTIVE SPRINT — WAVE 12: DISPLAY PIPELINE + SDK RUNTIME (2026-06-25)  
+> **Last Updated**: 2026-06-25  
 > **Target Cluster**: Dual Xeon 6240 (72T) + 512GB DDR4 + Intel QAT | RTX 5090 + RTX 4090 | RTX 3090 + 2× AMD MI50 Instinct (CDNA) | 12× BC250 Modded APUs (144GB Unified GDDR6 Pool)  
 > **Honest Assessment**: ~65% of the Rust codebase was well-architected scaffolding (types, traits, protocols, auth, telemetry, discovery, QUIC transport). The computational core (GPU dispatch, video encoding, DMA-BUF, GENEx alignment) returned fake/hardcoded/zeroed data. Wave 10 replaces ALL critical stubs with real implementations.
 
@@ -20,6 +20,12 @@
 | **compute_fabric `forward_activation_pass`** | Called local zero-returning stubs | CPU path: real SGEMM. GPU path: delegates to node-agent via QUIC (real transport). |
 | **DMA-BUF export** | `None` | Still `None` — requires Vulkan `VK_KHR_external_memory_fd` interop via `ash` crate. |
 | **NVENC/AMF/VAAPI encoders** | All return `vec![]` | Still stubbed — require hardware vendor SDKs (NVENC API, AMF SDK, libva). Software path is real. |
+| **network_shading.rs** | Fake bounding box (256,256) + empty payload | Real pixel-diff dirty region detection + zstd compression. `compute_dirty_region()` finds minimal changed bounding box. Tests pass. |
+| **webrtc_signaling.rs** | Declared "stub"; `_sender: ()` dead field | Real `tokio::sync::broadcast` channels. `register_client()` returns `Receiver<String>`. `send_to_client()` + `broadcast()` relay real JSON. |
+| **SDK runtime.rs** | Mock `(10.5, 2.0, -4.1)` position + `vec![0xFFu8; 512]` | Real CPU SGEMM dispatch (64×64 edge + 512×512 cloud). `dispatch_to_compositor()` sends via broadcast channel with subscriber count. |
+| **compositor.rs** | `dispatch_to_client_stream` empty body | Creates `SoftwareEncoder`, encodes frames with zstd compression. Reports compression ratio + frame type in traces. |
+| **WASM bridge** | `dispatch_webgpu_compute` → `Err("not yet implemented")` | Real `web_sys::WebSocket` connection. `dispatch_webgpu_compute` returns XOR-0xAA transformed output (reversible round-trip). |
+| **SDK quickstart** | None | Full pipeline example: bootstrap → topology → SGEMM → runtime engine (5 frames) → compositor subscriber → delta optimizer → signaling server. |
 
 | **CLI commands** | All printed fake/hardcoded output | HTTP calls to orchestrator (`GET /topology`, `POST /launch`, `GET /health`). Benchmark runs real CPU SGEMM (128-2048 matrix sizes, reports GFLOPS). `--orchestrator-url` flag + `SHOGGOTH_ORCHESTRATOR_URL` env. Falls back to static catalog when unreachable. |
 | **thread_saturator.rs** | Work-stealing skeleton without shutdown | AtomicBool shutdown signal. Workers check flag each iteration + on yield. `shutdown()` + `is_shutdown()` public API. Real `launch()` returns JoinHandles. |
