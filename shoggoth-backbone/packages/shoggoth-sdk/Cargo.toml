@@ -33,6 +33,7 @@ tokio-tungstenite = "0.24"
 futures-util = "0.3"
 wasm-bindgen = { version = "0.2", optional = true }
 axum = { version = "0.8", optional = true }
+shoggoth-core = { path = "../shoggoth-core" }
 
 # FFI for python bindings
 pyo3 = { workspace = true, optional = true }
